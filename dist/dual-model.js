@@ -1,5 +1,5 @@
-import {createStopRecovery,stopActive} from './stops.js?v=10';
-import {initialPositions,insideZones,levelDistance,zoneCapacity} from './accumulations.js?v=10';
+import {createStopRecovery,stopActive} from './stops.js?v=11';
+import {initialPositions,insideZones,levelDistance,zoneCapacity} from './accumulations.js?v=11';
 
 const DT = .1;
 const EPS = 1e-7;
@@ -21,13 +21,13 @@ export function runDualModel(input,c,seed,progress=()=>{}) {
  const feedPeriod=60/c.inflow, mainHalf=c.mainPitch/2, branchHalf=c.branchPitch/2;
  const mainEnd=c.mainLength-mainHalf, mainMove=c.speed/60*DT, branchMove=c.branchSpeed/60*DT;
  let nextId=1;
- const groups=seed.trunks.map(route=>({route,queue:[],lines:[],sent:0,demand:0,credit:0,
+ const groups=seed.trunks.map(route=>({route,queue:[],lines:[],sent:0,demand:0,credit:0,cursor:0,
   capacity:Math.floor((route.length+EPS)/c.branchPitch)}));
  const lines=c.stations.map((s,j)=>{
   const buffer=s.enabled?Math.floor(s.capacity*c.branchInitial/100):0;
   const lead=s.travelLength*60/c.branchSpeed+c.cycle;
   const exit=Math.min(groups[s.group].route.length-branchHalf,Math.max(branchHalf,s.junction));
-  const line={...s,j,stock:buffer,initial:buffer,queue:[],expected:0,used:0,missed:0,received:0,sent:0,
+  const line={...s,j,stock:buffer,initial:buffer,queue:[],reserved:0,expected:0,used:0,missed:0,received:0,sent:0,
    start:null,firstArrival:buffer?0:null,ready:0,nextDispatch:0,nextUse:Infinity,lead,exit,minObserved:buffer,maxObserved:buffer,
    reached:buffer>=s.maximum,call:false,gap:null,
    storage:Array.from({length:s.capacity},(_,i)=>s.travelLength-levelDistance(s.storageZones,i+.5,c.branchPitch))};
@@ -52,6 +52,8 @@ export function runDualModel(input,c,seed,progress=()=>{}) {
  const transportStock=()=>main.length+groups.reduce((n,g)=>n+g.queue.length,0);
  const inletInitial=main.length, mainInitial=transportStock(), branchInitial=lines.reduce((sum,s)=>sum+s.initial,0);
  const totalDemand=active.reduce((sum,s)=>sum+s.rate,0);
+ const supplyRatio=Math.min(1,c.inflow/totalDemand);
+ let branchFillAt=active.every(s=>s.stock>=s.maximum)?0:null;
  const snapshots=[], telemetryRows=[], trend=[], shortageEvents=[];
  const sampling=Math.max(30,Math.ceil(steps/1800)), trendSampling=Math.max(600,Math.ceil(steps/1440));
  const telemetryInterval=[5,10,30,60,120].find(s=>duration/s<=10000)??Math.ceil(duration/10000);
@@ -93,16 +95,26 @@ export function runDualModel(input,c,seed,progress=()=>{}) {
   }
   if (active.every(s=>s.start!==null)) allStart=t;
  }
- function canTake(s,t,starting){
+ function prefillTarget(group,t){
+  for(let offset=0;offset<group.lines.length;offset++){
+   const i=(group.cursor+offset)%group.lines.length,s=group.lines[i];
+   const arrival=t+s.exit*60/c.branchSpeed;
+   if(s.stock+s.queue.length+s.reserved<s.maximum&&!transferStops[s.j].some(e=>stopActive(e,arrival)))return {station:s,index:i};
+  }
+  return null;
+ }
+ function canTake(s,t,starting,reservedFill){
   if(s.stock+s.queue.length>=s.capacity||s.ready>t+EPS)return false;
-  const period=60/s.rate;
-  const due=s.start===null?0:Math.max(0,1+Math.floor((t+s.lead-s.nextUse+EPS)/period));
-  const projected=s.stock+s.queue.length-due;
-  if(projected>=s.maximum)s.call=false;
-  else if(projected<=s.minimum)s.call=true;
-  if(projected>=s.maximum)return false;
-  // Em regime, cada máquina repõe na sua cadência. Estoque baixo dá margem de recuperação.
-  return starting||c.control==='level'||t+EPS>=s.nextDispatch;
+  if(reservedFill)return s.stock+s.queue.length+s.reserved<s.maximum;
+  if(starting){
+   const due=s.start===null?0:Math.max(0,1+Math.floor((t+s.lead-s.nextUse+EPS)/(60/s.rate)));
+   return s.stock+s.queue.length-due<s.maximum;
+  }
+  // No FBRA, o sensor mínimo abre a chamada e o máximo encerra a reposição.
+  if(s.stock>=s.maximum)s.call=false;
+  else if(s.stock<=s.minimum)s.call=true;
+  return s.call&&s.stock+s.queue.length<s.maximum&&
+   ((c.control==='level'&&supplyRatio===1)||t+EPS>=s.nextDispatch);
  }
  function isFilled(){
   return c.startMode==='precharge'?allStart!==null:active.every(s=>s.reached);
@@ -154,6 +166,8 @@ export function runDualModel(input,c,seed,progress=()=>{}) {
    }
    if (received) queue.splice(0,received);
   }
+  const justBranchesFull=branchFillAt===null&&active.every(s=>s.stock>=s.maximum);
+  if(justBranchesFull)branchFillAt=t;
   const wasReleased=allStart!==null;
   release(t);
   const justReleased=!wasReleased&&allStart!==null;
@@ -161,11 +175,12 @@ export function runDualModel(input,c,seed,progress=()=>{}) {
   if (justFilled) filledAt=t;
   const globalRelease=justReleased&&c.startMode==='precharge';
   if(globalRelease)record(t,true,false);
+  const reservedFill=c.startMode==='precharge'&&allStart===null&&branchFillAt===null;
   for (let g=0;g<groups.length;g++){
    const group=groups[g], {queue,route}=group;
    const barriers=trunkStops[g].length?points(trunkStops[g],t):[];
    const available=c.startMode==='main'&&allStart===null?[]:group.lines.filter(s=>
-    canTake(s,t,filledAt===null)&&!transferStops[s.j].some(e=>stopActive(e,t)));
+    canTake(s,t,filledAt===null,reservedFill)&&!transferStops[s.j].some(e=>stopActive(e,t)));
    const end=route.length-branchHalf;
    let leader=route.length, kept=0, scan=0;
    for (const box of queue) {
@@ -173,20 +188,31 @@ export function runDualModel(input,c,seed,progress=()=>{}) {
     while(scan<available.length&&available[scan].exit+branchHalf>=old-EPS)scan++;
     let next=scan-1;
     while(next>=0&&available[next].ready>t+EPS)next--;
-    const station=available[next];
+    // A reserva da partida atravessa os primeiros ramais até a transferência escolhida.
+    if(box.destination&&old+branchMove>=box.destination.exit-branchHalf-EPS&&
+       transferStops[box.destination.j].some(e=>stopActive(e,t))){
+     box.destination.reserved--;
+     box.destination=null;
+    }
+    const station=box.destination??available[next];
     const exit=station?.exit??end;
     const limit=barrierLimit(old,Math.min(exit,leader),barriers,branchHalf);
     box.position=Math.max(old,Math.min(old+branchMove,limit));
-    if (station&&Math.abs(box.position-exit)<=branchHalf+EPS&&!barriers.some(p=>{
+    const canTransfer=station&&(box.destination?
+     station.ready<=t+EPS&&station.stock+station.queue.length<station.maximum&&
+     !transferStops[station.j].some(e=>stopActive(e,t)):true);
+    if (canTransfer&&Math.abs(box.position-exit)<=branchHalf+EPS&&!barriers.some(p=>{
      const boundary=Math.max(branchHalf,p-branchHalf);
      return old<=boundary+EPS&&exit>=boundary-EPS;
     })) {
      station.ready=t+c.cycle;
      station.queue.push({position:branchHalf,release:station.ready,id:box.id});
      station.sent++;
-     const factor=station.call?1+c.recovery/100:1;
-     const period=60/(station.rate*factor);
-     station.nextDispatch=advanceCadence(t,station.nextDispatch,period);
+     if(box.destination)station.reserved--;
+     if(filledAt!==null){
+      const factor=supplyRatio<1?supplyRatio:1+c.recovery/100;
+      station.nextDispatch=advanceCadence(t,station.nextDispatch,60/(station.rate*factor));
+     }
     }else{
      queue[kept++]=box;
      leader=box.position-c.branchPitch;
@@ -205,9 +231,10 @@ export function runDualModel(input,c,seed,progress=()=>{}) {
   if(outside){outsideMax=Math.max(outsideMax,outside);outsideSeconds+=outside*DT;outsideFirst??=t;}
   if (t+EPS>=nextSplit&&main[0]>=mainEnd-EPS&&!mainBarriers.some(p=>p>=c.mainLength-EPS)) {
    const starting=filledAt===null;
+   const targets=reservedFill?groups.map(group=>prefillTarget(group,t)):[];
    const ready=groups.map((group,g)=>{
     const tail=group.queue.at(-1);
-    return group.lines.length>0&&group.queue.length<group.capacity&&
+    return group.lines.length>0&&(!reservedFill||!!targets[g])&&group.queue.length<group.capacity&&
      (!tail||tail.position>=branchHalf+c.branchPitch-EPS)&&
      !trunkStops[g].some(e=>e.position<=EPS&&stopActive(e,t));
    });
@@ -216,7 +243,12 @@ export function runDualModel(input,c,seed,progress=()=>{}) {
    const chosen=ready[desired]?desired:1-desired;
    if (ready[chosen]) {
     const group=groups[chosen];
-    group.queue.push({position:branchHalf,id:mainIds.shift()});
+    const target=targets[chosen];
+    group.queue.push({position:branchHalf,id:mainIds.shift(),destination:target?.station});
+    if(target){
+     target.station.reserved++;
+     group.cursor=(target.index+1)%group.lines.length;
+    }
     group.sent++;
     main.shift();
     nextSplit=advanceCadence(t,nextSplit,feedPeriod);
@@ -239,7 +271,7 @@ export function runDualModel(input,c,seed,progress=()=>{}) {
    s.maxObserved=Math.max(s.maxObserved,s.stock);
   }
   const previewDetail=k%10===0&&(t<=60||(allStart!==null&&t-allStart<=180));
-  record(t,!globalRelease&&(justFilled||justReleased||stopBoundary||previewDetail||k%sampling===0||k===steps),k%telemetryStep===0||k===steps);
+  record(t,!globalRelease&&(justBranchesFull||justFilled||justReleased||stopBoundary||previewDetail||k%sampling===0||k===steps),k%telemetryStep===0||k===steps);
   if(k%trendSampling===0||k===steps)trend.push({t,main:transportStock(),stock:lines.reduce((a,s)=>a+s.stock,0),consumed:lines.reduce((a,s)=>a+s.used,0),missed:lines.reduce((a,s)=>a+s.missed,0),admitted});
   if(k%20000===0)progress(k/steps);
  }
@@ -257,7 +289,7 @@ export function runDualModel(input,c,seed,progress=()=>{}) {
   lines.some(s=>s.initial+s.sent!==s.stock+s.used+s.queue.length)) throw Error('Divergência na conservação da quantidade de caixas.');
  const results=lines.map((s,j)=>({...c.stations[j],firstArrival:s.firstArrival,start:s.start,consumed:s.used,missed:s.missed,
   minObserved:s.minObserved,maxObserved:s.maxObserved,stockEnd:s.stock,transferred:s.sent}));
- return {config:input,duration,warm,demand:totalDemand,consumed,missed,allStart,filledAt,
+ return {config:input,duration,warm,demand:totalDemand,consumed,missed,allStart,filledAt,branchFillAt,
   groupSent:groups.map(g=>g.sent),redirected,heldSeconds,rateMeasured:(consumed-warmUsed)/((duration-warm)/60),missedSteady:missed-warmMissed,
   admitted,mainInitial,mainEnd:transportStock(),mainCapacity,inletCapacity,trunkCapacity:groups.map(g=>g.lines.length?g.capacity:0),branchInitial,branchEnd,lines:results,
   mainZones:c.mainZones,outsideAccumMax:outsideMax,outsideBoxSeconds:outsideSeconds,outsideFirst,

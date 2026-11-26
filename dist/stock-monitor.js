@@ -1,4 +1,4 @@
-import {stockPoints,instantaneousStocksCsv} from './stock-data.js?v=10';
+import {stockPoints,instantaneousStocksCsv} from './stock-data.js?v=11';
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const clock=t=>{t=Math.max(0,Math.floor(t));return [Math.floor(t/3600),Math.floor(t/60)%60,t%60].map(x=>String(x).padStart(2,'0')).join(':');};
 

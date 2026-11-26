@@ -124,7 +124,9 @@ test('o pré-enchimento global mantém alimentação e distribuição proporcion
  assert.ok(ready.consumed.every(n=>n===0));
  const early=r.telemetry.rows.filter(s=>s.t>=r.allStart&&s.t<=r.allStart+300);
  assert.ok(early.length>40);
- assert.ok(early.slice(1).every((s,i)=>s.admitted>early[i].admitted),'A alimentação não deve parar em blocos após a liberação');
+ assert.ok(early.at(-1).admitted>early[0].admitted);
+ assert.ok(early.slice(1).every((s,i)=>s.admitted>early[i].admitted||s.main===r.mainCapacity),
+  'Sem entrada em um intervalo, a reserva precisa estar cheia no cenário nominal');
  assert.ok(early.every(s=>s.main>=r.mainCapacity*.97));
  assert.equal(r.missed,0);
  const last=r.telemetry.rows.at(-1);
@@ -155,4 +157,24 @@ test('a mesma caixa só avança e só muda de trecho em direção à máquina',(
   snap.branchPositions.forEach((positions,i)=>check(positions,snap.branchIds[i],2,run.lines[i].group));
  }
  assert.ok([...boxes.values()].some(box=>box.stage===2));
+});
+
+test('rodízio atende os ramais distantes antes do fim do pré-enchimento dos ramais',()=>{
+ const run=runModel({...config,durationHours:.4},seed);
+ const latestArrival=Math.max(...run.lines.map(s=>s.firstArrival));
+ assert.ok(latestArrival<run.branchFillAt);
+ assert.ok(run.branchFillAt<run.allStart);
+ for(const line of run.lines){
+  const idealTravel=(line.junction+line.travelLength)*60/config.branchSpeed+config.cycle;
+  assert.ok(line.firstArrival<idealTravel+30,line.name+' precisa receber no primeiro rodízio');
+ }
+ const branchFilled=run.snapshots.find(s=>s.t===run.branchFillAt);
+ assert.ok(branchFilled.stock.every((value,i)=>value===run.lines[i].maximum));
+ assert.ok(branchFilled.main<run.mainCapacity);
+ const released=run.snapshots.find(s=>s.t===run.allStart);
+ assert.equal(released.main,run.mainCapacity);
+ assert.ok(released.consumed.every(n=>n===0));
+ const after=run.telemetry.rows.filter(s=>s.t>=run.allStart+60);
+ assert.ok(after.every(row=>row.stock.every((stock,i)=>stock<=run.lines[i].maximum)));
+ assert.ok(run.conservation);
 });
