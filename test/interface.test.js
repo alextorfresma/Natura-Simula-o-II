@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import {defaultConfig,prepare,runModel,supportsAlternative} from '../dist/model.js';
 import {parseStopTime,stopActive} from '../dist/stops.js';
 import * as zones from '../dist/accumulations.js';
+import {createDistributor} from '../dist/distributor.js';
 import {createAnalytics} from '../dist/charts.js';
 import {createLayoutEditor} from '../dist/layout-editor.js';
 import {layoutBounds,validateLayoutSeed,layoutFromSeed,compileLayout,configForLayout} from '../dist/layout-data.js';
@@ -34,7 +35,7 @@ class FakeWorker{
  postMessage(data){const result=runModel(data.config,data.seed);this.onmessage({data:{type:'result',result}});}
 }
 const sandbox={console,structuredClone,URL,Number,Math,Date,Map,Set,Uint8Array,Float32Array,JSON,
- parseStopTime,stopActive,defaultConfig,prepare,supportsAlternative,createAnalytics,createLayoutEditor,layoutBounds,validateLayoutSeed,layoutFromSeed,compileLayout,configForLayout,...zones,devicePixelRatio:1,Worker:FakeWorker,crypto:{randomUUID:()=>String(Math.random())},
+ parseStopTime,stopActive,defaultConfig,prepare,supportsAlternative,createAnalytics,createDistributor,createLayoutEditor,layoutBounds,validateLayoutSeed,layoutFromSeed,compileLayout,configForLayout,...zones,devicePixelRatio:1,Worker:FakeWorker,crypto:{randomUUID:()=>String(Math.random())},
  window:{matchMedia:()=>({matches:false})},document:{getElementById:id=>elements.get(id),querySelectorAll:()=>[],createElement:()=>element(),createDocumentFragment:()=>element()},
  fetch:async()=>({ok:true,json:async()=>seed}),localStorage:{getItem:()=>null,setItem:noop},
  ResizeObserver:class{observe(){}},requestAnimationFrame:noop,setTimeout:()=>1,clearTimeout:noop};
@@ -66,6 +67,17 @@ test('a interface FBRA executa o Layout 03, aplica seleção e mostra os resulta
  assert.equal(elements.get('progressOverlay').hidden,true);
  assert.equal(elements.get('play').disabled,false);
  assert.equal(elements.get('splitNote').hidden,false);
+ assert.equal(elements.get('distributorReadout').hidden,false);
+ assert.equal(elements.get('distributorPanel').hidden,false);
+ assert.match(elements.get('distributorChart').innerHTML,/data-playhead/);
+ assert.equal(elements.get('distributorTotal').textContent,'0');
+ elements.get('timeline').value=elements.get('timeline').max;
+ elements.get('timeline').oninput();
+ const total=vm.runInContext('state.result.groupSent.reduce((a,b)=>a+b,0)',context);
+ assert.equal(elements.get('distributorTotal').textContent,Number(total).toLocaleString('pt-BR'));
+ elements.get('timeline').value=0;
+ elements.get('timeline').oninput();
+ assert.equal(elements.get('distributorTotal').textContent,'0');
  assert.match(elements.get('consumptionChart').innerHTML,/<svg/);
  assert.match(elements.get('consumptionLegend').innerHTML,/Demanda das liberadas/);
  assert.match(elements.get('stopResults').innerHTML,/Ramal superior parado/);

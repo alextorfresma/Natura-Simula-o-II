@@ -1,5 +1,5 @@
-import {createStopRecovery,stopActive} from './stops.js?v=12';
-import {initialPositions,insideZones,levelDistance,zoneCapacity} from './accumulations.js?v=12';
+import {createStopRecovery,stopActive} from './stops.js?v=13';
+import {initialPositions,insideZones,levelDistance,zoneCapacity} from './accumulations.js?v=13';
 
 const DT = .1;
 const EPS = 1e-7;
@@ -54,7 +54,7 @@ export function runDualModel(input,c,seed,progress=()=>{}) {
  const totalDemand=active.reduce((sum,s)=>sum+s.rate,0);
  const supplyRatio=Math.min(1,c.inflow/totalDemand);
  let branchFillAt=active.every(s=>s.stock>=s.maximum)?0:null;
- const snapshots=[], telemetryRows=[], trend=[], shortageEvents=[];
+ const snapshots=[], telemetryRows=[], trend=[], shortageEvents=[], diversions=groups.map(()=>[]);
  const sampling=Math.max(30,Math.ceil(steps/1800)), trendSampling=Math.max(600,Math.ceil(steps/1440));
  const telemetryInterval=[5,10,30,60,120].find(s=>duration/s<=10000)??Math.ceil(duration/10000);
  const telemetryStep=Math.round(telemetryInterval/DT);
@@ -255,6 +255,7 @@ export function runDualModel(input,c,seed,progress=()=>{}) {
      group.cursor=(target.index+1)%group.lines.length;
     }
     group.sent++;
+    diversions[chosen].push(t);
     main.shift();
     nextSplit=advanceCadence(t,nextSplit,feedPeriod);
     if (chosen!==desired&&groups[desired].lines.length) redirected++;
@@ -294,7 +295,7 @@ export function runDualModel(input,c,seed,progress=()=>{}) {
  const results=lines.map((s,j)=>({...c.stations[j],firstArrival:s.firstArrival,start:s.start,consumed:s.used,missed:s.missed,
   minObserved:s.minObserved,maxObserved:s.maxObserved,stockEnd:s.stock,transferred:s.sent}));
  return {config:input,duration,warm,demand:totalDemand,consumed,missed,allStart,filledAt,branchFillAt,
-  groupSent:groups.map(g=>g.sent),redirected,heldSeconds,rateMeasured:(consumed-warmUsed)/((duration-warm)/60),missedSteady:missed-warmMissed,
+  groupSent:groups.map(g=>g.sent),diversions:diversions.map(times=>Float64Array.from(times)),redirected,heldSeconds,rateMeasured:(consumed-warmUsed)/((duration-warm)/60),missedSteady:missed-warmMissed,
   admitted,mainInitial,mainEnd:transportStock(),mainCapacity,inletCapacity,trunkCapacity:groups.map(g=>g.lines.length?g.capacity:0),branchInitial,branchEnd,lines:results,
   mainZones:c.mainZones,outsideAccumMax:outsideMax,outsideBoxSeconds:outsideSeconds,outsideFirst,
   snapshots,trend,sampleInterval:sampling*DT,maxSimultaneous,minimumCycle:c.cycle,telemetry:{interval:telemetryInterval,rows:telemetryRows},

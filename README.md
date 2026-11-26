@@ -11,7 +11,7 @@ Com Node.js 22 ou superior, execute `npm run dev` e abra **http://localhost:4173
 - Na tabela de linhas, marque as máquinas que devem rodar. Ajuste níveis de acúmulo em caixas, respeitando 1 ≤ mínimo < máximo ≤ capacidade.
 - Selecione o estoque inicial e a condição de liberação das máquinas. Consumo e faltas são contabilizados depois da liberação de cada máquina.
 - Programa-se uma parada pela planta, definindo local, distância, início e duração. A principal, os dois ramais de distribuição, cada trecho até uma máquina e cada transferência podem ser bloqueados. O relógio inclui o tempo de enchimento. Máquinas liberadas continuam consumindo sua reserva.
-- **Simular produção** calcula o período. Na planta, ajuste a posição e velocidade da reprodução. Os gráficos mostram o período inteiro ou a janela escolhida. Os cartões por linha mostram caixas no ramal e consumidas no instante da reprodução.
+- **Simular produção** calcula o período. Na planta, ajuste a posição e velocidade da reprodução. Os gráficos mostram o período inteiro ou a janela escolhida. Os cartões por linha mostram caixas no ramal e consumidas no instante da reprodução. Junto ao distribuidor, os contadores mostram os desvios acumulados e os dos últimos 60 segundos simulados, por lado. O gráfico abaixo da planta mostra o histórico da taxa de desvio e permite selecionar um instante.
 - Exporte os resultados, a série de produção, o estoque ou as ocorrências em CSV. Cenários salvos ficam neste navegador e também podem ser exportados em JSON.
 
 ## Regras e limites

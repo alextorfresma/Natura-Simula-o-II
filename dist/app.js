@@ -1,9 +1,10 @@
-import {parseStopTime,stopActive} from './stops.js?v=12';
-import {defaultConfig,prepare,supportsAlternative} from './model.js?v=12';
-import {normalizeZones,zoneCapacity,levelDistance,insideZones,initialPositions} from './accumulations.js?v=12';
-import {createAnalytics} from './charts.js?v=12';
-import {createLayoutEditor} from './layout-editor.js?v=12';
-import {layoutBounds,validateLayoutSeed,layoutFromSeed,compileLayout,configForLayout} from './layout-data.js?v=12';
+import {createDistributor} from './distributor.js?v=13';
+import {parseStopTime,stopActive} from './stops.js?v=13';
+import {defaultConfig,prepare,supportsAlternative} from './model.js?v=13';
+import {normalizeZones,zoneCapacity,levelDistance,insideZones,initialPositions} from './accumulations.js?v=13';
+import {createAnalytics} from './charts.js?v=13';
+import {createLayoutEditor} from './layout-editor.js?v=13';
+import {layoutBounds,validateLayoutSeed,layoutFromSeed,compileLayout,configForLayout} from './layout-data.js?v=13';
 const $=id=>document.getElementById(id),num=(x,n=2)=>Number(x).toLocaleString('pt-BR',{maximumFractionDigits:n,minimumFractionDigits:n}),int=x=>Number(x).toLocaleString('pt-BR'),esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const clock=t=>{t=Math.max(0,Math.floor(t||0));return [Math.floor(t/3600),Math.floor(t/60)%60,t%60].map(x=>String(x).padStart(2,'0')).join(':');};
 const state={seed:null,originalSeed:null,config:null,result:null,prepared:null,selected:11,frame:0,time:0,playing:false,worker:null,zoom:1,pan:{x:0,y:0},drag:null,recording:false,history:[]};
@@ -11,9 +12,11 @@ const zoneEdit={target:'main',pick:null};
 const formKeys=['durationHours','speed','branchSpeed','inflow','cycle','mainLength','mainInitial','branchInitial','startMode','control','recovery','waitMargin','alternative'];
 let toastTimer;
 function toast(message,error=false){$('toast').textContent=message;$('toast').className='toast'+(error?' error':'');$('toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').hidden=true,6500);}
-const analytics=createAnalytics({get:$,notify:toast,download:(name,text)=>download(name,new Blob([text],{type:'text/csv;charset=utf-8'})),onSeek:(t,line)=>{
+function seekPlayback(t,line=null){
  if(!state.result)return;state.playing=false;$('play').textContent='▶';if(line!==null)state.selected=line;state.time=t;state.frame=frameAt(t);$('timeline').value=state.frame;renderLines();draw();$('mapStage').scrollIntoView?.({behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'center'});
-}});
+}
+const analytics=createAnalytics({get:$,notify:toast,download:(name,text)=>download(name,new Blob([text],{type:'text/csv;charset=utf-8'})),onSeek:seekPlayback});
+const distributor=createDistributor({get:$,onSeek:seekPlayback});
 const layoutEditor=createLayoutEditor({get:$,notify:toast,download:(name,text)=>download(name,new Blob([text],{type:'application/json'})),makeDefault:defaultConfig,onApply:({seed,config})=>{
  prepare(config,seed);if(state.seed&&state.config){state.history.push({id:crypto.randomUUID(),name:'Antes de editar · '+(state.seed.name||state.config.name),date:new Date().toISOString(),seed:structuredClone(state.seed),config:structuredClone(state.config),summary:summary(state.result)});if(state.history.length>20)state.history.shift();}
  state.seed=seed;state.config=config;state.selected=0;state.zoom=1;state.pan={x:0,y:0};zoneEdit.target='main';$('zoneEditor').hidden=true;syncForm();invalidate();updateSaved();stopEdit.id=null;stopEdit.pick=false;toast('Layout aplicado. Os trajetos e acúmulos serão usados no próximo ensaio. Reprograme as paradas para o novo desenho.');
@@ -24,7 +27,7 @@ function persist(){try{localStorage.setItem('natura-ii-fbra-config',JSON.stringi
 function syncForm(){const c=state.config,alternatives=supportsAlternative(state.seed);$('alternative').innerHTML=alternatives?'<option value="G22">G22 · E18 desligada</option><option value="E18">E18 · G22 desligada</option>':'<option value="none">Sem alternativa vinculada</option>';$('alternative').disabled=!alternatives;for(const k of formKeys)$(k).value=c[k];$('mainPitch').value=Math.round(c.mainPitch*1000);$('branchPitch').value=Math.round(c.branchPitch*1000);$('mainPct').textContent=c.mainInitial+'%';$('branchPct').textContent=c.branchInitial+'%';$('presetEmpty').classList.toggle('selected',c.mainInitial===0&&c.branchInitial===0);$('presetFull').classList.toggle('selected',c.mainInitial===100&&c.branchInitial===100);$('layoutName').textContent=state.seed.name||'LAYOUT FBRA / REV. 16';}
 function readForm(){for(const k of formKeys)state.config[k]=['startMode','control','alternative'].includes(k)?$(k).value:Number($(k).value);state.config.mainPitch=Number($('mainPitch').value)/1000;state.config.branchPitch=Number($('branchPitch').value)/1000;}
 function preview(){try{state.prepared=prepare(state.config,state.seed);return true;}catch(e){state.prepared=null;return false;}}
-function invalidate(){$('splitNote').hidden=true;if(state.recording&&recorder?.state==='recording'){recorder.stop();state.recording=false;}state.playing=false;state.result=null;analytics.clear();state.time=0;state.frame=0;$('play').disabled=true;$('play').textContent='▶';$('timeline').disabled=true;$('dirtyNote').textContent='Alterações prontas. Execute um novo ensaio.';$('dirtyNote').classList.add('dirty');$('consumedValue').textContent='—';$('missedValue').textContent='—';$('periodNote').textContent='Resultado disponível após simular';$('startNote').textContent='Espera inicial calculada separadamente';$('scenarioLabel').textContent='Cenário em edição';preview();updateConfigured();renderLines();renderStops();if(!$('zoneEditor').hidden)renderZones();draw();persist();}
+function invalidate(){$('splitNote').hidden=true;if(state.recording&&recorder?.state==='recording'){recorder.stop();state.recording=false;}state.playing=false;state.result=null;analytics.clear();distributor.setResult(null);state.time=0;state.frame=0;$('play').disabled=true;$('play').textContent='▶';$('timeline').disabled=true;$('dirtyNote').textContent='Alterações prontas. Execute um novo ensaio.';$('dirtyNote').classList.add('dirty');$('consumedValue').textContent='—';$('missedValue').textContent='—';$('periodNote').textContent='Resultado disponível após simular';$('startNote').textContent='Espera inicial calculada separadamente';$('scenarioLabel').textContent='Cenário em edição';preview();updateConfigured();renderLines();renderStops();if(!$('zoneEditor').hidden)renderZones();draw();persist();}
 function updateConfigured(){const c=state.config;$('flowLegend').hidden=!state.seed.dual;$('startModeHelp').hidden=c.startMode!=='main';const demand=(state.prepared?.stations||c.stations).reduce((a,s)=>a+(s.enabled?+s.rate:0),0);$('demandValue').textContent=num(demand);$('supplyNote').textContent='Alimentação nominal de '+num(c.inflow,1)+' cx/min';$('mainPct').textContent=c.mainInitial+'%';$('branchPct').textContent=c.branchInitial+'%';$('presetEmpty').classList.toggle('selected',c.mainInitial===0&&c.branchInitial===0);$('presetFull').classList.toggle('selected',c.mainInitial===100&&c.branchInitial===100);$('totalClock').textContent='/ '+clock(c.durationHours*3600);$('mapMode').textContent=c.mainInitial===100&&c.branchInitial===100?'ACÚMULOS CHEIOS':c.mainInitial===0&&c.branchInitial===0?'PARTIDA DO ZERO':'ESTOQUE PERSONALIZADO';}
 function editableStation(j){if(supportsAlternative(state.seed)&&j===10&&state.config.alternative==='E18'){state.config.e18Station??={...state.config.stations[10],name:'E18 (alternativa a G22)',length:state.seed.e18Station?.length??4.112,uWidth:0,auto:true};state.config.e18Station.enabled=state.config.stations[j].enabled;return state.config.e18Station;}return state.config.stations[j];}
 function renderLines(){
@@ -60,12 +63,12 @@ function run(){
  readForm();try{state.prepared=prepare(state.config,state.seed);}catch(e){toast(e.message,true);return;}
  state.playing=false;$('play').textContent='▶';state.worker?.terminate();
  $('progressOverlay').hidden=false;$('progressFill').style.width='0%';$('progressText').textContent='Calculando '+num(state.config.durationHours,2)+' horas de produção…';
- try{state.worker=new Worker(new URL('./worker.js?v=12',import.meta.url),{type:'module'});}catch(e){$('progressOverlay').hidden=true;toast('O navegador não conseguiu iniciar o cálculo: '+e.message,true);return;}
+ try{state.worker=new Worker(new URL('./worker.js?v=13',import.meta.url),{type:'module'});}catch(e){$('progressOverlay').hidden=true;toast('O navegador não conseguiu iniciar o cálculo: '+e.message,true);return;}
  state.worker.onmessage=({data})=>{
   if(data.type==='progress'){$('progressFill').style.width=Math.round(data.value*100)+'%';$('progressText').textContent=Math.round(data.value*100)+'% · caixas, sensores e consumo sendo calculados';}
   if(data.type==='error'){$('progressOverlay').hidden=true;toast(data.message,true);state.worker.terminate();state.worker=null;}
   if(data.type==='result'){
-   state.result=data.result;state.frame=0;state.time=0;state.worker.terminate();state.worker=null;$('progressOverlay').hidden=true;
+   state.result=data.result;state.frame=0;state.time=0;distributor.setResult(state.result);state.worker.terminate();state.worker=null;$('progressOverlay').hidden=true;
    $('play').disabled=false;$('timeline').disabled=false;$('timeline').max=data.result.snapshots.length-1;$('timeline').value=0;
    $('consumedValue').textContent=int(data.result.consumed);$('missedValue').textContent=int(data.result.missed);
    $('missedValue').closest('.metric').classList.toggle('alert',data.result.missed>0);
@@ -202,7 +205,13 @@ function draw(){
   ctx.font='10px IBM Plex Mono,monospace';ctx.textAlign='center';ctx.fillStyle=selected?'#d6ff5f':'#7999a3';ctx.fillText(String(j+1).padStart(2,'0'),x,y+dy);
   if(state.seed.custom&&!state.seed.dual){const machine=world(s.branch.at(-1));ctx.textAlign='left';ctx.font='11px DM Sans,sans-serif';ctx.fillText(s.name,machine[0]+8,machine[1]+4);}
  }
- if(state.seed.dual)drawFlow(S);
+ if(state.seed.dual){
+  drawFlow(S);
+  if(state.result){
+   distributor.anchor(...world(state.seed.path.at(-1)),w,h);
+   distributor.update(state.time);
+  }
+ }
  if(state.recording){ctx.fillStyle='#102832ee';ctx.fillRect(0,h-36,w,36);ctx.fillStyle='#d3efc5';ctx.font='13px IBM Plex Mono,monospace';ctx.textAlign='left';ctx.fillText('FLUXO  ·  '+clock(snap?.t||0)+'  ·  '+c.speed+' m/min  ·  '+c.inflow+' cx/min',15,h-13);}
  const scheduledStop=drawStops(S,c,snap);
  updateSelected(S,snap,c);
@@ -223,6 +232,7 @@ function updateSelected(S,snap,c){
 }
 new ResizeObserver(()=>{draw();analytics.resize();}).observe($('mapStage'));
 new ResizeObserver(()=>layoutEditor.resize()).observe($('ldStage'));
+new ResizeObserver(()=>distributor.resize()).observe($('distributorPanel'));
 $('editLayout').onclick=()=>{if(!state.seed||state.recording)return toast('Aguarde o carregamento ou encerre a gravação.');if(state.seed.dual)return toast('Use Definir acúmulos e a tabela de linhas para ajustar o Layout 03. O editor de desenho trabalha com uma única principal.');state.playing=false;$('play').textContent='▶';layoutEditor.open({seed:state.seed,config:state.prepared||state.config});};
 $('newLayout').onclick=()=>{if(!state.seed||state.recording)return toast('Aguarde o carregamento ou encerre a gravação.');state.playing=false;$('play').textContent='▶';layoutEditor.open({seed:state.seed,config:state.config,blank:true});};
 $('fitMap').onclick=()=>{state.zoom=1;state.pan={x:0,y:0};draw();};
@@ -263,7 +273,7 @@ $('exportCSV').onclick=()=>{
  for(const s of S)rows.push([s.name,s.enabled?'sim':'não',num(s.rate),num(s.length,3),s.capacity,s.minimum,s.maximum,num(s.minSensor,3),num(s.maxSensor,3),s.consumed??'',s.missed??'',s.firstArrival??'',s.start??'',(s.storageZones||[]).map(z=>num(z.start,3)+' a '+num(z.end,3)).join(' / ')]);
  const csv=rows.map(row=>row.map(x=>'"'+String(x).replaceAll('"','""')+'"').join(';')).join('\r\n');download('fluxo-resultados.csv',new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'}));
 };
-$('exportJSON').onclick=()=>{const r=state.result;const data={format:'fluxo-caixas-v2',seed:state.seed,config:state.config,result:r?{...r,snapshots:undefined,telemetry:undefined,shortageEvents:undefined}:null};download('torfresma-layout-e-cenario.json',new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));};
+$('exportJSON').onclick=()=>{const r=state.result;const data={format:'fluxo-caixas-v2',seed:state.seed,config:state.config,result:r?{...r,snapshots:undefined,telemetry:undefined,shortageEvents:undefined,diversions:undefined}:null};download('torfresma-layout-e-cenario.json',new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));};
 $('importJSON').onclick=()=>$('importFile').click();
 $('importFile').onchange=async()=>{
  const f=$('importFile').files[0];if(!f)return;try{if(f.size>5e6)throw Error('Use um arquivo de até 5 MB.');const data=JSON.parse(await f.text());
@@ -290,7 +300,7 @@ $('compare').onclick=()=>{
 };
 $('original').onclick=()=>{
  modal('Desenho cotado · Layout 03','<img id="layoutReferenceImage" class="modal-image" alt="Layout 03 com cotas dos transportadores.">');
- const img=$('layoutReferenceImage');img.onerror=()=>{img.onerror=null;img.src='layout03-cotado.svg';};img.src='assets/layout-cotado.png?v=12';
+ const img=$('layoutReferenceImage');img.onerror=()=>{img.onerror=null;img.src='layout03-cotado.svg';};img.src='assets/layout-cotado.png?v=13';
 };
 $('openAssumptions').onclick=()=>modal('Hipóteses e critérios do modelo',`<div class="modal-copy"><h3>Layout 03 e caixas</h3><p>Uma entrada e dois transportadores de distribuição. As caixas seguem em frente e são retiradas na transferência da máquina que precisa de reposição. A caixa de 464 × 290 × 214 mm ocupa 290 mm no sentido da entrada e 464 mm nos ramais. Nos três trechos longos cotados, usa-se 53,5607 m, 31,3373 m e 28,138 m. Os demais trechos seguem as linhas de centro aproximadas. A capacidade usa caixas inteiras no comprimento de acúmulo útil configurado. E18 e G22 são saídas alternativas.</p><h3>Partida e reposição</h3><p>O desvio reparte as caixas conforme o consumo dos lados ativos desde a partida. Quando um lado fica sem espaço, o outro pode receber a próxima caixa. No pré-enchimento global, as máquinas de cada lado recebem em rodízio até seus máximos, enquanto as caixas livres completam a reserva dos transportadores. Quando a produção começa, o desvio distribui novas caixas de acordo com o consumo das máquinas ativas em cada percurso. A liberação de cada máquina é determinada pela opção da barra lateral.</p><p>Como no FBRA, a reposição abre ao atingir o mínimo e fecha no máximo. As caixas em trânsito no ramal já contam para o limite de reposição. A taxa da tabela já inclui os 5% da planilha.</p><h3>Paradas e consumo</h3><p>As paradas contam desde o começo do ensaio. Caixas a jusante continuam e as máquinas usam suas reservas. A falta é um ciclo de consumo de uma máquina liberada sem caixa disponível.</p></div>`);
 

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import {distributionAt} from '../dist/distributor.js';
 import {readFileSync} from 'node:fs';
 import {test} from 'node:test';
 import {defaultConfig,prepare,runModel} from '../dist/model.js';
@@ -110,6 +111,7 @@ test('o worker entrega os quadros dos ramais e os vetores do histórico por tran
   self.onmessage({data:{config:{...config,durationHours:1/60},seed}});
   assert.equal(output.type,'result',output.message);
   assert.equal(output.result.snapshots[0].trunks.length,2);
+  assert.deepEqual(output.result.diversions.map(series=>series.length),output.result.groupSent);
   assert.equal(output.result.snapshots.at(-1).branchPositions.length,21);
   assert.equal(output.result.telemetry.rows.at(-1).stock.length,21);
  }finally{delete globalThis.self;}
@@ -202,4 +204,18 @@ test('a demanda desigual recebe divisão proporcional desde a partida e em regim
  assert.ok(before.slice(1).every((row,i)=>row.admitted>before[i].admitted));
  assert.ok(run.lines.every(line=>line.missed===0));
  assert.ok(run.conservation);
+});
+
+
+test('registra a hora de cada desvio e consulta o acumulado e o último minuto',()=>{
+ const run=runModel({...config,durationHours:.05},seed);
+ const events=run.diversions[0];
+ assert.ok(events.length>0);
+ assert.equal(distributionAt(run.diversions,events[0]-.01)[0].total,0);
+ assert.equal(distributionAt(run.diversions,events[0])[0].total,1);
+ for(const row of run.telemetry.rows){
+  const reading=distributionAt(run.diversions,row.t);
+  assert.deepEqual(reading.map(p=>p.total),row.groupSent);
+  assert.deepEqual(reading.map(p=>p.recent),run.diversions.map(times=>times.filter(t=>row.t-60<t&&t<=row.t).length));
+ }
 });
