@@ -14,6 +14,12 @@ test('o Layout 03 usa dois ramais, dimensões de referência e 21 máquinas, com
  assert.equal(normal.branchPitch,.464);
  assert.equal(normal.stations.length,21);
  assert.equal(seed.trunks.length,2);
+ for(const [route,from,cota] of [[0,[1778,1088],53.5607],[1,[1731,1250],31.3373],[1,[1163,1211],28.138]]){
+  const trunk=seed.trunks[route], i=trunk.points.findIndex(p=>p[0]===from[0]&&p[1]===from[1]);
+  assert.ok(i>=0 && Math.abs(trunk.lengths[i+1]-trunk.lengths[i]-cota)<1e-8);
+ }
+ assert.ok(normal.stations.every(s=>s.capacity===Math.floor(s.length/.464)));
+
  assert.ok(Math.abs(normal.stations.reduce((total,s)=>total+s.rate,0)-83.4645)<1e-8);
  assert.notDeepEqual(normal.stations[10].xy,other.stations[10].xy);
  assert.equal(normal.stations[10].rate,other.stations[10].rate);
@@ -53,7 +59,7 @@ test('seleciona e configura acúmulos por máquina sem modificar seu consumo',()
 });
 
 test('os quatro modos de liberação e a transição 50/50 são condições distintas',()=>{
- const scenario={...config,durationHours:.2};
+ const scenario={...config,durationHours:1};
  const first=runModel({...scenario,startMode:'first'},seed);
  const main=runModel({...scenario,startMode:'main'},seed);
  const local=runModel({...scenario,startMode:'individual'},seed);
@@ -62,6 +68,18 @@ test('os quatro modos de liberação e a transição 50/50 são condições dist
  assert.ok(first.lines.some(s=>s.start!==null&&s.start<global.allStart));
  assert.ok(local.lines.some(s=>s.start!==null&&s.start<local.allStart));
  assert.ok(global.lines.every(s=>s.start===global.allStart));
+ for(const result of [first,main,local,global]){
+  assert.ok(Number.isFinite(result.filledAt) && result.filledAt>0);
+  assert.ok(result.lines.every(line=>line.maxObserved===line.maximum));
+ }
+ assert.ok(first.filledAt>first.allStart);
+ assert.ok(main.filledAt>main.allStart);
+ const atRelease=global.snapshots.find(s=>s.t===global.allStart);
+ assert.ok(atRelease.stock.every((stock,j)=>stock===global.lines[j].maximum));
+ const lastPreload=global.snapshots.findLast(s=>s.t<global.allStart);
+ assert.equal(lastPreload.positions.length,global.mainCapacity);
+ // A divisão já pode enviar a primeira caixa no próprio passo de liberação.
+ assert.ok(atRelease.positions.length>=global.mainCapacity-1);
  const incomplete=runModel({...config,durationHours:1/60},seed);
  assert.equal(incomplete.filledAt,null);
  assert.equal(incomplete.consumed,0);

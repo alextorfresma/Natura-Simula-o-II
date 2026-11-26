@@ -1,9 +1,9 @@
-import {parseStopTime,stopActive} from './stops.js?v=8';
-import {defaultConfig,prepare,supportsAlternative} from './model.js?v=8';
-import {normalizeZones,zoneCapacity,levelDistance,insideZones,initialPositions} from './accumulations.js?v=8';
-import {createAnalytics} from './charts.js?v=8';
-import {createLayoutEditor} from './layout-editor.js?v=8';
-import {layoutBounds,validateLayoutSeed,layoutFromSeed,compileLayout,configForLayout} from './layout-data.js?v=8';
+import {parseStopTime,stopActive} from './stops.js?v=9';
+import {defaultConfig,prepare,supportsAlternative} from './model.js?v=9';
+import {normalizeZones,zoneCapacity,levelDistance,insideZones,initialPositions} from './accumulations.js?v=9';
+import {createAnalytics} from './charts.js?v=9';
+import {createLayoutEditor} from './layout-editor.js?v=9';
+import {layoutBounds,validateLayoutSeed,layoutFromSeed,compileLayout,configForLayout} from './layout-data.js?v=9';
 const $=id=>document.getElementById(id),num=(x,n=2)=>Number(x).toLocaleString('pt-BR',{maximumFractionDigits:n,minimumFractionDigits:n}),int=x=>Number(x).toLocaleString('pt-BR'),esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const clock=t=>{t=Math.max(0,Math.floor(t||0));return [Math.floor(t/3600),Math.floor(t/60)%60,t%60].map(x=>String(x).padStart(2,'0')).join(':');};
 const state={seed:null,originalSeed:null,config:null,result:null,prepared:null,selected:11,frame:0,time:0,playing:false,worker:null,zoom:1,pan:{x:0,y:0},drag:null,recording:false,history:[]};
@@ -25,7 +25,7 @@ function syncForm(){const c=state.config,alternatives=supportsAlternative(state.
 function readForm(){for(const k of formKeys)state.config[k]=['startMode','control','alternative'].includes(k)?$(k).value:Number($(k).value);state.config.mainPitch=Number($('mainPitch').value)/1000;state.config.branchPitch=Number($('branchPitch').value)/1000;}
 function preview(){try{state.prepared=prepare(state.config,state.seed);return true;}catch(e){state.prepared=null;return false;}}
 function invalidate(){$('splitNote').hidden=true;if(state.recording&&recorder?.state==='recording'){recorder.stop();state.recording=false;}state.playing=false;state.result=null;analytics.clear();state.time=0;state.frame=0;$('play').disabled=true;$('play').textContent='▶';$('timeline').disabled=true;$('dirtyNote').textContent='Alterações prontas. Execute um novo ensaio.';$('dirtyNote').classList.add('dirty');$('consumedValue').textContent='—';$('missedValue').textContent='—';$('periodNote').textContent='Resultado disponível após simular';$('startNote').textContent='Espera inicial calculada separadamente';$('scenarioLabel').textContent='Cenário em edição';preview();updateConfigured();renderLines();renderStops();if(!$('zoneEditor').hidden)renderZones();draw();persist();}
-function updateConfigured(){const c=state.config;$('startModeHelp').hidden=c.startMode!=='main';const demand=(state.prepared?.stations||c.stations).reduce((a,s)=>a+(s.enabled?+s.rate:0),0);$('demandValue').textContent=num(demand);$('supplyNote').textContent='Alimentação nominal de '+num(c.inflow,1)+' cx/min';$('mainPct').textContent=c.mainInitial+'%';$('branchPct').textContent=c.branchInitial+'%';$('presetEmpty').classList.toggle('selected',c.mainInitial===0&&c.branchInitial===0);$('presetFull').classList.toggle('selected',c.mainInitial===100&&c.branchInitial===100);$('totalClock').textContent='/ '+clock(c.durationHours*3600);$('mapMode').textContent=c.mainInitial===100&&c.branchInitial===100?'ACÚMULOS CHEIOS':c.mainInitial===0&&c.branchInitial===0?'PARTIDA DO ZERO':'ESTOQUE PERSONALIZADO';}
+function updateConfigured(){const c=state.config;$('flowLegend').hidden=!state.seed.dual;$('startModeHelp').hidden=c.startMode!=='main';const demand=(state.prepared?.stations||c.stations).reduce((a,s)=>a+(s.enabled?+s.rate:0),0);$('demandValue').textContent=num(demand);$('supplyNote').textContent='Alimentação nominal de '+num(c.inflow,1)+' cx/min';$('mainPct').textContent=c.mainInitial+'%';$('branchPct').textContent=c.branchInitial+'%';$('presetEmpty').classList.toggle('selected',c.mainInitial===0&&c.branchInitial===0);$('presetFull').classList.toggle('selected',c.mainInitial===100&&c.branchInitial===100);$('totalClock').textContent='/ '+clock(c.durationHours*3600);$('mapMode').textContent=c.mainInitial===100&&c.branchInitial===100?'ACÚMULOS CHEIOS':c.mainInitial===0&&c.branchInitial===0?'PARTIDA DO ZERO':'ESTOQUE PERSONALIZADO';}
 function editableStation(j){if(supportsAlternative(state.seed)&&j===10&&state.config.alternative==='E18'){state.config.e18Station??={...state.config.stations[10],name:'E18 (alternativa a G22)',length:state.seed.e18Station?.length??4.112,uWidth:0,auto:true};state.config.e18Station.enabled=state.config.stations[j].enabled;return state.config.e18Station;}return state.config.stations[j];}
 function renderLines(){
  const c=state.config,P=state.prepared?.stations;const frag=document.createDocumentFragment();
@@ -60,7 +60,7 @@ function run(){
  readForm();try{state.prepared=prepare(state.config,state.seed);}catch(e){toast(e.message,true);return;}
  state.playing=false;$('play').textContent='▶';state.worker?.terminate();
  $('progressOverlay').hidden=false;$('progressFill').style.width='0%';$('progressText').textContent='Calculando '+num(state.config.durationHours,2)+' horas de produção…';
- try{state.worker=new Worker(new URL('./worker.js?v=8',import.meta.url),{type:'module'});}catch(e){$('progressOverlay').hidden=true;toast('O navegador não conseguiu iniciar o cálculo: '+e.message,true);return;}
+ try{state.worker=new Worker(new URL('./worker.js?v=9',import.meta.url),{type:'module'});}catch(e){$('progressOverlay').hidden=true;toast('O navegador não conseguiu iniciar o cálculo: '+e.message,true);return;}
  state.worker.onmessage=({data})=>{
   if(data.type==='progress'){$('progressFill').style.width=Math.round(data.value*100)+'%';$('progressText').textContent=Math.round(data.value*100)+'% · caixas, sensores e consumo sendo calculados';}
   if(data.type==='error'){$('progressOverlay').hidden=true;toast(data.message,true);state.worker.terminate();state.worker=null;}
@@ -92,6 +92,30 @@ function world(p){return [(p[0]-(viewport.minX??220))*viewport.scale+viewport.ox
 function pathPoint(points,distances,m){let a=0,b=distances.length-1;while(a+1<b){const k=(a+b)>>1;if(distances[k]<=m)a=k;else b=k;}a=Math.min(a,points.length-2);const u=Math.max(0,Math.min(1,(m-distances[a])/(distances[a+1]-distances[a])));const dx=points[a+1][0]-points[a][0],dy=points[a+1][1]-points[a][1],len=Math.hypot(dx,dy)||1;return {p:[points[a][0]+u*dx,points[a][1]+u*dy],u:[dx/len,dy/len]};}
 function branchGeometry(points){let d=[0];for(let k=1;k<points.length;k++)d.push(d[k-1]+Math.hypot(points[k][0]-points[k-1][0],points[k][1]-points[k-1][1])*state.seed.scale);return d;}
 function route(points,color,width){ctx.strokeStyle=color;ctx.lineWidth=width;ctx.lineCap='round';ctx.lineJoin='round';ctx.beginPath();points.forEach((p,i)=>{const [x,y]=world(p);if(i)ctx.lineTo(x,y);else ctx.moveTo(x,y);});ctx.stroke();}
+function flowArrow(a,b,offset=8){
+ const [ax,ay]=world(a),[bx,by]=world(b),span=Math.hypot(bx-ax,by-ay);
+ if(span<9)return;
+ const ux=(bx-ax)/span,uy=(by-ay)/span;
+ const x=(ax+bx)/2-uy*offset,y=(ay+by)/2+ux*offset;
+ ctx.save();ctx.translate(x,y);ctx.rotate(Math.atan2(uy,ux));
+ ctx.strokeStyle='#a9d2d7';ctx.lineWidth=1.15;ctx.beginPath();
+ ctx.moveTo(-5,0);ctx.lineTo(5,0);ctx.moveTo(1.5,-3.1);ctx.lineTo(5,0);ctx.lineTo(1.5,3.1);
+ ctx.stroke();ctx.restore();
+}
+function drawFlow(S){
+ flowArrow(...state.seed.path);
+ for (const {points} of state.seed.trunks) {
+  for (let k=1;k<points.length;k++) {
+   const a=points[k-1],b=points[k];
+   if(Math.hypot(b[0]-a[0],b[1]-a[1])>=65)flowArrow(a,b);
+  }
+ }
+ for (const s of S) {
+  if(!s.enabled)continue;
+  const [a,b]=s.branch;
+  if(Math.hypot(b[0]-a[0],b[1]-a[1])>=30)flowArrow(a,b,7);
+ }
+}
 function box(point,tangent,length,width,color){const [x,y]=world(point),s=viewport.scale/state.seed.scale;ctx.save();ctx.translate(x,y);ctx.rotate(Math.atan2(tangent[1],tangent[0]));ctx.fillStyle=color;ctx.fillRect(-length*s/2,-width*s/2,Math.max(1.3,length*s),Math.max(1.7,width*s));ctx.restore();}
 function snapshot(){return state.result?.snapshots[state.frame]||null;}
 function draw(){
@@ -131,6 +155,7 @@ function draw(){
   ctx.font='10px IBM Plex Mono,monospace';ctx.textAlign='center';ctx.fillStyle=selected?'#d6ff5f':'#7999a3';ctx.fillText(String(j+1).padStart(2,'0'),x,y+dy);
   if(state.seed.custom&&!state.seed.dual){const machine=world(s.branch.at(-1));ctx.textAlign='left';ctx.font='11px DM Sans,sans-serif';ctx.fillText(s.name,machine[0]+8,machine[1]+4);}
  }
+ if(state.seed.dual)drawFlow(S);
  if(state.recording){ctx.fillStyle='#102832ee';ctx.fillRect(0,h-36,w,36);ctx.fillStyle='#d3efc5';ctx.font='13px IBM Plex Mono,monospace';ctx.textAlign='left';ctx.fillText('FLUXO  ·  '+clock(snap?.t||0)+'  ·  '+c.speed+' m/min  ·  '+c.inflow+' cx/min',15,h-13);}
  const scheduledStop=drawStops(S,c,snap);
  updateSelected(S,snap,c);
@@ -181,8 +206,9 @@ $('importJSON').onclick=()=>$('importFile').click();
 $('importFile').onchange=async()=>{
  const f=$('importFile').files[0];if(!f)return;try{if(f.size>5e6)throw Error('Use um arquivo de até 5 MB.');const data=JSON.parse(await f.text());
  if(data.format==='torfresma-layout-v1'){layoutEditor.open({layout:data.layout,config:state.config});$('importFile').value='';return;}
- if(!['fluxo-caixas-v1','fluxo-caixas-v2'].includes(data.format)||!data.config?.stations)throw Error('Arquivo de cenário inválido.');const seed=data.seed?validateLayoutSeed(data.seed):state.originalSeed;prepare(data.config,seed);state.seed=seed;state.config=data.config;state.selected=0;state.zoom=1;state.pan={x:0,y:0};zoneEdit.target='main';syncForm();invalidate();toast('Layout e cenário importados. Execute o ensaio para recalcular.');}catch(e){toast(e.message,true);}$('importFile').value='';
+ if(!['fluxo-caixas-v1','fluxo-caixas-v2'].includes(data.format)||!data.config?.stations)throw Error('Arquivo de cenário inválido.');const seed=data.seed?latestReference(validateLayoutSeed(data.seed)):state.originalSeed;prepare(data.config,seed);state.seed=seed;state.config=data.config;state.selected=0;state.zoom=1;state.pan={x:0,y:0};zoneEdit.target='main';syncForm();invalidate();toast('Layout e cenário importados. Execute o ensaio para recalcular.');}catch(e){toast(e.message,true);}$('importFile').value='';
 };
+function latestReference(seed){return seed?.id===state.originalSeed.id?structuredClone(state.originalSeed):seed;}
 function summary(r){return r?{duration:r.duration,demand:r.demand,consumed:r.consumed,missed:r.missed,allStart:r.allStart,rateMeasured:r.rateMeasured,mainEnd:r.mainEnd,branchEnd:r.branchEnd,mainCapacity:r.mainCapacity,outsideAccumMax:r.outsideAccumMax}:null;}
 function updateSaved(){$('savedCount').textContent=state.history.length;}
 $('saveScenario').onclick=()=>{
@@ -192,7 +218,7 @@ $('saveScenario').onclick=()=>{
 $('compare').onclick=()=>{
  if(!state.history.length){toast('Salve dois cenários para comparar os resultados.');return;}
  modal('Cenários salvos',`<div class="scenario-list">${state.history.map((s,i)=>`<div class="scenario-row"><div><label><input type="checkbox" class="compare-check" value="${i}" ${i>=state.history.length-2?'checked':''}> ${esc(s.name)}</label><br><small>${num(s.config.durationHours,1)} h · ${s.config.speed} m/min · estoque ${s.config.mainInitial}% / ${s.config.branchInitial}%</small></div><div><button class="button" data-load="${i}">Carregar</button><button class="button ghost" data-remove="${i}" aria-label="Excluir cenário ${esc(s.name)}">×</button></div></div>`).join('')}</div><button class="button" id="doCompare" style="margin-top:18px">Comparar selecionados</button><div id="comparisonResult"></div>`);
- $('modalBody').querySelectorAll('[data-load]').forEach(b=>b.onclick=()=>{const s=state.history[+b.dataset.load];state.seed=structuredClone(s.seed||state.originalSeed);state.config=structuredClone(s.config);state.selected=0;state.zoom=1;state.pan={x:0,y:0};zoneEdit.target='main';syncForm();invalidate();$('modal').close();toast('Layout e cenário carregados. Execute para reproduzir.');});
+ $('modalBody').querySelectorAll('[data-load]').forEach(b=>b.onclick=()=>{const s=state.history[+b.dataset.load];state.seed=latestReference(structuredClone(s.seed||state.originalSeed));state.config=structuredClone(s.config);state.selected=0;state.zoom=1;state.pan={x:0,y:0};zoneEdit.target='main';syncForm();invalidate();$('modal').close();toast('Layout e cenário carregados. Execute para reproduzir.');});
  $('modalBody').querySelectorAll('[data-remove]').forEach(b=>b.onclick=()=>{state.history.splice(+b.dataset.remove,1);persist();updateSaved();$('modal').close();$('compare').click();});
  $('doCompare').onclick=()=>{
   const chosen=[...document.querySelectorAll('.compare-check:checked')].map(el=>state.history[+el.value]);if(chosen.length<2||chosen.length>4)return toast('Selecione de 2 a 4 cenários.');
@@ -202,9 +228,9 @@ $('compare').onclick=()=>{
 };
 $('original').onclick=()=>{
  modal('Desenho cotado · Layout 03','<img id="layoutReferenceImage" class="modal-image" alt="Layout 03 com cotas dos transportadores.">');
- const img=$('layoutReferenceImage');img.onerror=()=>{img.onerror=null;img.src='layout03-cotado.svg';};img.src='assets/layout-cotado.png';
+ const img=$('layoutReferenceImage');img.onerror=()=>{img.onerror=null;img.src='layout03-cotado.svg';};img.src='assets/layout-cotado.png?v=9';
 };
-$('openAssumptions').onclick=()=>modal('Hipóteses e critérios do modelo',`<div class="modal-copy"><h3>Layout 03 e caixas</h3><p>Uma entrada e dois ramais de distribuição. A caixa de 464 × 290 × 214 mm ocupa 290 mm no sentido da entrada e 464 mm nos ramais. As distâncias e capacidades são estimadas a partir das linhas de centro do desenho. E18 e G22 são saídas alternativas.</p><h3>Partida e reposição</h3><p>O desvio alterna os ramais durante a partida. Se um estiver indisponível, a caixa segue para o outro. A reposição por consumo começa depois que cada acúmulo ativo tiver atingido seu máximo. A liberação de cada máquina é determinada pela opção da barra lateral.</p><p>O mínimo abre o pedido de reposição com previsão de consumo durante o trânsito. O máximo limita o estoque. A taxa da tabela já inclui os 5% da planilha.</p><h3>Paradas e consumo</h3><p>As paradas contam desde o começo do ensaio. Caixas a jusante continuam e as máquinas usam suas reservas. A falta é um ciclo de consumo de uma máquina liberada sem caixa disponível.</p></div>`);
+$('openAssumptions').onclick=()=>modal('Hipóteses e critérios do modelo',`<div class="modal-copy"><h3>Layout 03 e caixas</h3><p>Uma entrada e dois ramais de distribuição. A caixa de 464 × 290 × 214 mm ocupa 290 mm no sentido da entrada e 464 mm nos ramais. Nos três trechos longos cotados, usa-se 53,5607 m, 31,3373 m e 28,138 m. Os demais trechos seguem as linhas de centro aproximadas. A capacidade usa caixas inteiras no comprimento de acúmulo útil configurado. E18 e G22 são saídas alternativas.</p><h3>Partida e reposição</h3><p>O desvio alterna os ramais durante a partida. Se um estiver indisponível, a caixa segue para o outro. A reposição por consumo começa depois que cada acúmulo ativo tiver atingido seu máximo. A liberação de cada máquina é determinada pela opção da barra lateral.</p><p>O mínimo abre o pedido de reposição com previsão de consumo durante o trânsito. O máximo limita o estoque. A taxa da tabela já inclui os 5% da planilha.</p><h3>Paradas e consumo</h3><p>As paradas contam desde o começo do ensaio. Caixas a jusante continuam e as máquinas usam suas reservas. A falta é um ciclo de consumo de uma máquina liberada sem caixa disponível.</p></div>`);
 
 let recorder=null;
 $('recordVideo').onclick=()=>{
@@ -381,7 +407,7 @@ function drawStops(S,c,snap){
 async function init(){
  try{
   const response=await fetch('./seed.json');if(!response.ok)throw Error('Não foi possível carregar o layout.');state.originalSeed=await response.json();state.originalSeed.name??='Layout 03 / Simulação II';state.seed=structuredClone(state.originalSeed);state.config=defaultConfig(state.seed);
-  try{const saved=JSON.parse(localStorage.getItem('natura-ii-fbra-config')),layout=JSON.parse(localStorage.getItem('natura-ii-fbra-layout'));const seed=layout?validateLayoutSeed(layout):state.originalSeed;if(saved?.stations?.length===seed.stations.length){prepare(saved,seed);state.seed=seed;state.config=saved;}const h=JSON.parse(localStorage.getItem('natura-ii-fbra-history'));if(Array.isArray(h))state.history=h.slice(-20);}catch{}
+  try{const saved=JSON.parse(localStorage.getItem('natura-ii-fbra-config')),layout=JSON.parse(localStorage.getItem('natura-ii-fbra-layout'));const seed=layout?latestReference(validateLayoutSeed(layout)):state.originalSeed;if(saved?.stations?.length===seed.stations.length){prepare(saved,seed);state.seed=seed;state.config=saved;}const h=JSON.parse(localStorage.getItem('natura-ii-fbra-history'));if(Array.isArray(h))state.history=h.slice(-20);}catch{}
   state.selected=Math.min(11,state.seed.stations.length-1);
   syncForm();preview();updateConfigured();renderLines();renderStops();updateSaved();draw();$('runButton').disabled=false;
  }catch(e){toast(e.message,true);$('runButton').disabled=true;}

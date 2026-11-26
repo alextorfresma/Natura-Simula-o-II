@@ -1,5 +1,5 @@
-import {createStopRecovery,stopActive} from './stops.js?v=8';
-import {initialPositions,insideZones,levelDistance,zoneCapacity} from './accumulations.js?v=8';
+import {createStopRecovery,stopActive} from './stops.js?v=9';
+import {initialPositions,insideZones,levelDistance,zoneCapacity} from './accumulations.js?v=9';
 
 const DT = .1;
 const EPS = 1e-7;
@@ -147,7 +147,8 @@ export function runDualModel(input,c,seed,progress=()=>{}) {
     const exit=Math.min(route.length-branchHalf,Math.max(branchHalf,s.junction));
     const limit=barrierLimit(box.position,Math.min(exit,leader),barriers,branchHalf);
     box.position=Math.max(box.position,Math.min(box.position+branchMove,limit));
-    const room=s.stock+s.queue.length<s.maximum;
+    // O máximo é a meta de estoque. Caixas a caminho também ocupam a capacidade física.
+    const room=s.stock+s.queue.length<s.capacity;
     if (box.position>=exit-EPS&&room&&t+EPS>=s.ready&&!transferStops[s.j].some(e=>stopActive(e,t))&&
         !barriers.some(p=>Math.abs(Math.max(branchHalf,p-branchHalf)-exit)<EPS)) {
      s.ready=t+c.cycle;

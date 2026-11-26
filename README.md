@@ -16,7 +16,7 @@ Com Node.js 22 ou superior, execute `npm run dev` e abra **http://localhost:4173
 
 ## Regras e limites
 
-A caixa de **464 × 290 × 214 mm** ocupa 290 mm no sentido do avanço na principal e 464 mm nos ramais. A geometria é uma reconstrução aproximada das linhas de centro do Layout 03. Os sensores são referências de pré-dimensionamento.
+A caixa de **464 × 290 × 214 mm** ocupa 290 mm no sentido do avanço na principal e 464 mm nos ramais. A planta indica o sentido com setas. Os três trechos longos cotados usam os comprimentos de 53,5607 m, 31,3373 m e 28,138 m do Layout 03. Os demais comprimentos são aproximados pelas linhas de centro do desenho. Os sensores são referências de pré-dimensionamento.
 
 A partida alterna entre os dois ramais. A caixa segue para o outro ramal se o previsto estiver indisponível e aguarda se ambos estiverem indisponíveis. A reposição priorizada pelo consumo começa após cada acúmulo ativo atingir seu máximo. Esse instante é calculado e exibido no resultado. Se o cenário não atingir essa condição, o aviso indica que o ensaio terminou em partida. Cada modo de liberação determina separadamente quando as máquinas podem começar a consumir.
 
