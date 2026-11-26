@@ -1,5 +1,5 @@
-import {emptyLayout,compileLayout,configForLayout,layoutFromSeed,lengths,projectPoint,moveMainPoint,moveBranchPoint,reconnectBranches,validateDraft,id} from './layout-data.js?v=13';
-import {normalizeZones,zoneCapacity} from './accumulations.js?v=13';
+import {emptyLayout,compileLayout,configForLayout,layoutFromSeed,lengths,projectPoint,moveMainPoint,moveBranchPoint,reconnectBranches,validateDraft,id} from './layout-data.js?v=14';
+import {normalizeZones,zoneCapacity} from './accumulations.js?v=14';
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmt=(x,n=2)=>Number(x).toLocaleString('pt-BR',{maximumFractionDigits:n,minimumFractionDigits:n});
 export function createLayoutEditor({get:$,notify,download,onApply,makeDefault}){

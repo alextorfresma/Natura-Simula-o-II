@@ -1,5 +1,5 @@
-import {createStopRecovery,stopActive} from './stops.js?v=13';
-import {initialPositions,insideZones,levelDistance,zoneCapacity} from './accumulations.js?v=13';
+import {createStopRecovery,stopActive} from './stops.js?v=14';
+import {initialPositions,insideZones,levelDistance,zoneCapacity} from './accumulations.js?v=14';
 
 const DT = .1;
 const EPS = 1e-7;

@@ -1,4 +1,4 @@
-import {runModel} from './model.js?v=13';
+import {runModel} from './model.js?v=14';
 self.onmessage=({data})=>{
  try{
   const result=runModel(data.config,data.seed,p=>self.postMessage({type:'progress',value:p}));

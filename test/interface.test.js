@@ -70,6 +70,13 @@ test('a interface FBRA executa o Layout 03, aplica seleção e mostra os resulta
  assert.equal(elements.get('distributorReadout').hidden,false);
  assert.equal(elements.get('distributorPanel').hidden,false);
  assert.match(elements.get('distributorChart').innerHTML,/data-playhead/);
+ const distributorChart=elements.get('distributorChart'),tooltip=elements.get('analyticsTooltip');
+ distributorChart.onpointermove({clientX:400,clientY:100});
+ assert.equal(tooltip.hidden,false);
+ assert.match(tooltip.innerHTML,/Superior.*Inferior.*Total desviado/);
+ assert.match(tooltip.innerHTML,/cx\/min/);
+ distributorChart.onpointerleave();
+ assert.equal(tooltip.hidden,true);
  assert.equal(elements.get('distributorTotal').textContent,'0');
  elements.get('timeline').value=elements.get('timeline').max;
  elements.get('timeline').oninput();

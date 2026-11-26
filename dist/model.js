@@ -1,6 +1,6 @@
-import {runDualModel} from './dual-model.js?v=13';
-import {normalizeStops,stopActive,branchArrivalPlanner,createStopRecovery} from './stops.js?v=13';
-import {normalizeZones,zoneCapacity,insideZones,levelDistance,initialPositions} from './accumulations.js?v=13';
+import {runDualModel} from './dual-model.js?v=14';
+import {normalizeStops,stopActive,branchArrivalPlanner,createStopRecovery} from './stops.js?v=14';
+import {normalizeZones,zoneCapacity,insideZones,levelDistance,initialPositions} from './accumulations.js?v=14';
 export function supportsAlternative(seed){return seed.supportsAlternative!==false&&seed.stations.length>10&&Number.isFinite(seed.e18_s);}
 export function defaultConfig(seed) {
  const stations=seed.stations.map(s=>({name:s.name,rate:s.rate,length:s.length,uWidth:s.u_width,enabled:s.enabled!==false,auto:true,minimum:s.minimum,maximum:s.maximum}));

@@ -1,5 +1,6 @@
 const SIDE_COLORS=['#2d7693','#a7611c'];
 const integer=new Intl.NumberFormat('pt-BR');
+const decimal=new Intl.NumberFormat('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
 const clock=seconds=>{
  const whole=Math.floor(seconds);
  return [Math.floor(whole/3600),Math.floor(whole/60)%60,whole%60].map(n=>String(n).padStart(2,'0')).join(':');
@@ -23,7 +24,7 @@ export function distributionAt(diversions,seconds){
 }
 
 export function createDistributor({get:$,onSeek}){
- const panel=$('distributorPanel'),card=$('distributorReadout'),host=$('distributorChart');
+ const panel=$('distributorPanel'),card=$('distributorReadout'),host=$('distributorChart'),tooltip=$('analyticsTooltip');
  let result=null,marker=null,chart=null,current=0;
  function update(seconds){
   if(!result)return;
@@ -49,7 +50,8 @@ export function createDistributor({get:$,onSeek}){
   for(let start=0;start<result.duration;start+=interval){
    const end=Math.min(start+interval,result.duration);
    const counts=result.diversions.map(times=>countUntil(times,end));
-   periods.push({start,end,rate:counts.map((n,i)=>(n-before[i])*60/(end-start))});
+   const boxes=counts.map((n,i)=>n-before[i]);
+   periods.push({start,end,boxes,rate:boxes.map(count=>count*60/(end-start))});
    before=counts;
   }
   const maximum=periods.reduce((m,p)=>Math.max(m,...p.rate),1);
@@ -63,12 +65,13 @@ export function createDistributor({get:$,onSeek}){
    return '<path d="'+d+'" fill="none" stroke="'+color+'" stroke-width="1.7"/>';
   }).join('');
   host.innerHTML='<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="'+height+'" viewBox="0 0 '+width+' '+height+'" role="img" aria-label="Desvios para o ramal superior e inferior em caixas por minuto">'+grid+times+lines+'<line data-playhead x1="'+left+'" x2="'+left+'" y1="'+top+'" y2="'+bottom+'" stroke="#29353d" stroke-dasharray="3 3"/></svg>';
-  chart={left,span,width};
+  chart={left,span,width,interval,periods};
   marker=host.querySelector?.('[data-playhead]');
   $('distributorInterval').textContent='Média em caixas/min por intervalo de '+integer.format(interval/60)+' min. Clique no gráfico para ir ao instante.';
   update(current);
  }
  function setResult(next){
+  if(chart)hideTooltip();
   result=next?.diversions?next:null;
   panel.hidden=card.hidden=!result;
   current=0;chart=null;marker=null;
@@ -84,11 +87,38 @@ export function createDistributor({get:$,onSeek}){
   card.style.left=left+'px';
   card.style.top=Math.max(8,Math.min(height-boxHeight-30,y-boxHeight-12))+'px';
  }
- host.onclick=event=>{
-  if(!result||!chart)return;
+ function timeAt(event){
   const bounds=host.getBoundingClientRect();
   const pixel=(event.clientX-bounds.left)*chart.width/(bounds.width||chart.width);
-  onSeek(Math.max(0,Math.min(1,(pixel-chart.left)/chart.span))*result.duration);
+  return Math.max(0,Math.min(1,(pixel-chart.left)/chart.span))*result.duration;
+ }
+ function hideTooltip(){
+  tooltip.hidden=true;
+  host.classList.remove('hovering');
+ }
+ host.onpointermove=event=>{
+  if(!result||!chart)return;
+  const time=timeAt(event),period=chart.periods[Math.min(chart.periods.length-1,Math.floor(time/chart.interval))];
+  const totals=period.boxes.reduce((sum,count)=>sum+count,0);
+  const rows=['Superior','Inferior'].map((side,i)=>
+   '<span>'+side+'<b>'+integer.format(period.boxes[i])+' cx · '+decimal.format(period.rate[i])+' cx/min</b></span>'
+  ).join('');
+  tooltip.innerHTML='<strong>'+clock(period.start)+' → '+clock(period.end)+'</strong>'+rows+
+   '<span>Total desviado<b>'+integer.format(totals)+' cx</b></span><small>Clique para localizar no mapa</small>';
+  tooltip.hidden=false;
+  const width=tooltip.offsetWidth||276,height=tooltip.offsetHeight||154;
+  tooltip.style.left=Math.max(8,Math.min((globalThis.innerWidth||1100)-width-8,event.clientX+14))+'px';
+  tooltip.style.top=Math.max(8,Math.min((globalThis.innerHeight||900)-height-8,event.clientY+14))+'px';
+  const displayedWidth=host.getBoundingClientRect().width||chart.width;
+  const cursor=(chart.left+chart.span*time/result.duration)*displayedWidth/chart.width;
+  host.style.setProperty?.('--chart-cursor',cursor+'px');
+  host.classList.add('hovering');
+ };
+ host.onpointerleave=hideTooltip;
+ host.onclick=event=>{
+  if(!result||!chart)return;
+  hideTooltip();
+  onSeek(timeAt(event));
  };
  return {setResult,update,anchor,resize};
 }
