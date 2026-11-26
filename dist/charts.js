@@ -1,6 +1,6 @@
-import {aggregateTelemetry,historyCsv,shortagesCsv} from './analytics-data.js?v=9';
-import {selectedDemand} from './stock-data.js?v=9';
-import {createStockMonitor} from './stock-monitor.js?v=9';
+import {aggregateTelemetry,historyCsv,shortagesCsv} from './analytics-data.js?v=10';
+import {selectedDemand} from './stock-data.js?v=10';
+import {createStockMonitor} from './stock-monitor.js?v=10';
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmt=(x,n=2)=>Number(x).toLocaleString('pt-BR',{minimumFractionDigits:n,maximumFractionDigits:n});
 const time=t=>{t=Math.max(0,Math.floor(t));return [Math.floor(t/3600),Math.floor(t/60)%60,t%60].map(x=>String(x).padStart(2,'0')).join(':');};

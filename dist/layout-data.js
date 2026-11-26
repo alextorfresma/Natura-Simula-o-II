@@ -1,4 +1,4 @@
-import {normalizeZones} from './accumulations.js?v=9';
+import {normalizeZones} from './accumulations.js?v=10';
 export const id=()=>globalThis.crypto?.randomUUID?.()||'id-'+Date.now()+'-'+Math.random().toString(36).slice(2);
 export function lengths(points){const d=[0];for(let i=1;i<points.length;i++)d.push(d[i-1]+Math.hypot(points[i][0]-points[i-1][0],points[i][1]-points[i-1][1]));return d;}
 export function projectPoint(points,p){

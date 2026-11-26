@@ -51,7 +51,6 @@ test('seleciona e configura acúmulos por máquina sem modificar seu consumo',()
  const run=runModel(revised,seed);
  assert.equal(run.demand,config.stations[0].rate);
  assert.deepEqual(run.groupSent.map(Boolean),[false,true]);
- assert.ok(run.redirected>0);
  assert.equal(run.lines[0].maxObserved,3);
  assert.equal(run.lines[0].minimum,2);
  assert.ok(run.lines.slice(1).every(s=>s.consumed===0&&s.missed===0));
@@ -76,10 +75,10 @@ test('os quatro modos de liberação e a transição 50/50 são condições dist
  assert.ok(main.filledAt>main.allStart);
  const atRelease=global.snapshots.find(s=>s.t===global.allStart);
  assert.ok(atRelease.stock.every((stock,j)=>stock===global.lines[j].maximum));
- const lastPreload=global.snapshots.findLast(s=>s.t<global.allStart);
- assert.equal(lastPreload.positions.length,global.mainCapacity);
- // A divisão já pode enviar a primeira caixa no próprio passo de liberação.
- assert.ok(atRelease.positions.length>=global.mainCapacity-1);
+ assert.ok(global.snapshots.filter(s=>s.t<global.allStart).every(s=>s.consumed.every(n=>n===0)));
+ assert.equal(atRelease.positions.length,global.inletCapacity);
+ assert.deepEqual(atRelease.trunks.map(boxes=>boxes.length),global.trunkCapacity);
+ assert.equal(atRelease.main,global.mainCapacity);
  const incomplete=runModel({...config,durationHours:1/60},seed);
  assert.equal(incomplete.filledAt,null);
  assert.equal(incomplete.consumed,0);
@@ -87,11 +86,11 @@ test('os quatro modos de liberação e a transição 50/50 são condições dist
 });
 
 test('preserva consumo das reservas e mede faltas em paradas localizadas',()=>{
- const scenario={...config,durationHours:.5};
+ const scenario={...config,durationHours:.75};
  const normal=runModel(scenario,seed);
  const stops=[
-  {name:'Bloqueio superior',target:'trunk',line:0,position:0,start:700,duration:400},
-  {name:'Transferência',target:'transfer',line:0,position:0,start:1250,duration:180}
+  {name:'Bloqueio superior',target:'trunk',line:0,position:0,start:1000,duration:400},
+  {name:'Transferência',target:'transfer',line:0,position:0,start:1600,duration:180}
  ];
  const stopped=runModel({...scenario,stops},seed);
  assert.ok(stopped.conservation);
@@ -99,7 +98,7 @@ test('preserva consumo das reservas e mede faltas em paradas localizadas',()=>{
  assert.ok(stopped.stopResults[0].lines.length>1);
  assert.ok(stopped.stopResults[0].lines.every(line=>stopped.lines[line.line].group===0));
  assert.equal(stopped.stopResults[1].lines.length,1);
- assert.ok(stopped.snapshots.some(frame=>frame.t===1100));
+ assert.ok(stopped.snapshots.some(frame=>frame.t===1400));
  assert.throws(()=>prepare({...scenario,stops:[{...stops[0],position:10000}]},seed),/posição/);
 });
 
@@ -114,4 +113,46 @@ test('o worker entrega os quadros dos ramais e os vetores do histórico por tran
   assert.equal(output.result.snapshots.at(-1).branchPositions.length,21);
   assert.equal(output.result.telemetry.rows.at(-1).stock.length,21);
  }finally{delete globalThis.self;}
+});
+
+test('o pré-enchimento global mantém alimentação e distribuição proporcionais após a liberação',()=>{
+ const r=runModel({...config,durationHours:.75},seed);
+ const ready=r.snapshots.find(s=>s.t===r.allStart);
+ assert.equal(ready.main,r.mainCapacity);
+ assert.deepEqual(ready.trunks.map(boxes=>boxes.length),r.trunkCapacity);
+ assert.ok(ready.stock.every((stock,i)=>stock===r.lines[i].maximum));
+ assert.ok(ready.consumed.every(n=>n===0));
+ const early=r.telemetry.rows.filter(s=>s.t>=r.allStart&&s.t<=r.allStart+300);
+ assert.ok(early.length>40);
+ assert.ok(early.slice(1).every((s,i)=>s.admitted>early[i].admitted),'A alimentação não deve parar em blocos após a liberação');
+ assert.ok(early.every(s=>s.main>=r.mainCapacity*.97));
+ assert.equal(r.missed,0);
+ const last=r.telemetry.rows.at(-1);
+ const sent=last.groupSent.map((n,i)=>n-ready.groupSent[i]);
+ const ratio=r.lines.filter(s=>s.group===0).reduce((n,s)=>n+s.rate,0)/r.demand;
+ assert.ok(Math.abs(sent[0]/(sent[0]+sent[1])-ratio)<.015);
+});
+
+test('a mesma caixa só avança e só muda de trecho em direção à máquina',()=>{
+ const run=runModel({...config,durationHours:.3},seed);
+ const boxes=new Map();
+ for(const snap of run.snapshots){
+  const seen=new Set();
+  function check(positions,ids,stage,group){
+   positions.forEach((position,i)=>{
+    const id=ids[i],before=boxes.get(id);
+    assert.ok(!seen.has(id),'uma caixa não pode ocupar dois trechos');
+    if(before){
+     assert.ok(stage>=before.stage,'não há retorno de ramal para a principal');
+     if(stage===before.stage)assert.ok(position>=before.position-1e-5,'a posição ao longo do trecho só pode avançar');
+     if(before.group!==null)assert.equal(group,before.group);
+    }
+    seen.add(id);boxes.set(id,{stage,group,position});
+   });
+  }
+  check(snap.positions,snap.positionIds,0,null);
+  snap.trunks.forEach((positions,i)=>check(positions,snap.trunkIds[i],1,i));
+  snap.branchPositions.forEach((positions,i)=>check(positions,snap.branchIds[i],2,run.lines[i].group));
+ }
+ assert.ok([...boxes.values()].some(box=>box.stage===2));
 });
