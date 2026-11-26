@@ -1,103 +1,150 @@
 <!doctype html>
 <html lang="pt-BR">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#000102">
-  <title>Simulação II · Fluxo de caixas</title>
-  <link rel="stylesheet" href="./style.css">
+ <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+ <meta name="description" content="Simulador de abastecimento de caixas vazias: teste turnos, velocidades, acúmulos, sensores e condições de partida.">
+ <meta name="theme-color" content="#000102"><title>Torfresma · Simulação II</title>
+ <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%23000102'/%3E%3Cpath d='M15 15h34v10H37v30H27V25H15z' fill='%23c0ff00'/%3E%3C/svg%3E">
+ <link rel="stylesheet" href="style.css?v=8">
 </head>
 <body>
-<header class="topbar">
-  <div class="brand"><span class="brandmark" aria-hidden="true">▣</span> Fluxo<span class="brand-dot">.</span><span class="brand-sub">SIMULAÇÃO II</span></div>
-  <div class="top-actions"><span class="reference-badge">Estudo de engenharia</span><button id="save-scenario" class="button">Salvar cenário</button><button id="compare-scenarios" class="button">Comparar <span id="saved-count">0</span></button></div>
-</header>
-<div class="shell">
+ <header class="topbar">
+  <a class="brand" href="./" aria-label="Torfresma simulador início"><span class="brandmark">T<span>↗</span></span><span>torfresma<span class="branddot">.</span></span><span class="brand-sub">SIMULAÇÃO II</span></a>
+  <div class="top-actions"><span class="private-label"><i></i> Estudo de engenharia</span><button id="saveScenario" class="button ghost">Salvar cenário</button><button id="compare" class="button">Comparar <span id="savedCount">0</span></button></div>
+ </header>
+ <main class="shell">
   <aside class="sidebar">
-    <div class="section-heading"><span class="eyebrow">Configuração</span><button id="defaults" form="settings-form" type="button" class="text-button">Restaurar</button></div>
-    <h1>O seu próximo cenário começa aqui.</h1>
-    <p class="sidebar-intro">Configure a alimentação, o estoque inicial e a divisão entre os ramais do Layout 03.</p>
-    <form id="settings-form">
-      <fieldset><legend>Período de produção</legend>
-        <label class="field">Duração do ensaio <span class="input-unit"><input name="hours" type="number" min="0.016666666666666666" max="24" step="any" required><span>horas</span></span></label>
-        <div class="quick-presets"><button type="button" data-hours="8">8 h</button><button type="button" data-hours="16">16 h</button><button type="button" data-hours="24">1 dia</button></div>
-      </fieldset>
-      <fieldset><legend>Estoque na partida</legend>
-        <div class="segmented"><button type="button" data-stock="0">Do zero</button><button type="button" data-stock="100">Tudo cheio</button></div>
-        <label class="range-field"><span>Acúmulo da principal <output id="mainInitial-value">0%</output></span><input name="mainInitial" type="range" min="0" max="100" step="5"></label>
-        <label class="range-field"><span>Acúmulo das máquinas <output id="branchInitial-value">0%</output></span><input name="branchInitial" type="range" min="0" max="100" step="5"></label>
-      </fieldset>
-      <fieldset><legend>Transporte e alimentação</legend>
-        <div class="two-fields">
-          <label class="field">Principal <span class="input-unit"><input name="mainSpeed" type="number" min="1" max="300" step="any" required><span>m/min</span></span></label>
-          <label class="field">Ramais <span class="input-unit"><input name="branchSpeed" type="number" min="1" max="300" step="any" required><span>m/min</span></span></label>
-          <label class="field">Alimentação <span class="input-unit"><input name="feed" type="number" min="0" max="1000" step="any" required><span>cx/min</span></span></label>
-          <label class="field">Transferência <span class="input-unit"><input name="cycle" type="number" min="0.2" max="120" step="any" required><span>s/cx</span></span></label>
-        </div>
-        <label class="field">Linha alternativa ativa <select name="alternative"><option>G22</option><option>E18</option></select></label>
-        <label class="field">Duração da divisão 50/50 <span class="input-unit"><input name="warmup" type="number" min="0" max="3600" step="any" required><span>s</span></span></label>
-      </fieldset>
-      <details class="advanced"><summary>Consumo por máquina</summary><p>Valores em cx/min. Use zero para desligar a máquina.</p><div id="rate-fields"></div></details>
-      <p id="config-error" class="error" role="alert" hidden></p>
-      <button class="button run" id="finish" type="submit">▶　Simular produção</button>
-      <p class="sidebar-intro">Caixa de 464 × 290 × 214 mm. Demanda de referência com a margem de 5% já incluída.</p>
-    </form>
+   <div class="section-heading"><span class="eyebrow">CONFIGURAÇÃO</span><button id="restore" class="text-button">Restaurar</button></div>
+   <h1>O seu próximo<br>cenário começa aqui.</h1>
+   <p class="sidebar-intro">Ajuste a operação e veja como as caixas chegam a cada máquina.</p>
+   <form id="configForm" novalidate>
+    <fieldset><legend><span class="step">01</span> Período de produção</legend>
+     <label class="field">Duração do ensaio<div class="input-unit"><input id="durationHours" name="durationHours" type="number" min="0.016667" max="168" step="any" value="8" required><span>horas</span></div></label>
+     <div class="quick-presets"><button type="button" data-hours="8">8 h</button><button type="button" data-hours="16">16 h</button><button type="button" data-hours="24">1 dia</button><button type="button" data-hours="48">2 dias</button></div>
+    </fieldset>
+    <fieldset><legend><span class="step">02</span> Estoque na partida</legend>
+     <div class="segmented" role="group" aria-label="Estoque inicial"><button type="button" id="presetEmpty" class="selected">Do zero</button><button type="button" id="presetFull">Tudo cheio</button></div>
+     <label class="range-field" for="mainInitial"><span>Acúmulo da principal <output id="mainPct">0%</output></span><input id="mainInitial" type="range" min="0" max="100" step="5" value="0"></label>
+     <label class="range-field" for="branchInitial"><span>Acúmulo dos ramais <output id="branchPct">0%</output></span><input id="branchInitial" type="range" min="0" max="100" step="5" value="0"></label>
+     <label class="field">Liberação das máquinas<select id="startMode"><option value="precharge">Após pré-enchimento global</option><option value="main">Após encher somente a principal</option><option value="individual">Ao máximo de cada ramal</option><option value="first">Ao chegar a primeira caixa</option></select></label>
+     <p id="startModeHelp" class="field-note" hidden>Enche 99% do acúmulo da principal antes de iniciar as transferências e liberar todas as máquinas. Os ramais mantêm o estoque inicial escolhido; faltas após a liberação entram no resultado.</p>
+    </fieldset>
+    <fieldset><legend><span class="step">03</span> Transporte e alimentação</legend>
+     <div class="two-fields"><label class="field">Principal<div class="input-unit"><input id="speed" type="number" min="1" max="200" step="1" value="60"><span>m/min</span></div></label><label class="field">Ramais<div class="input-unit"><input id="branchSpeed" type="number" min="1" max="200" step="1" value="60"><span>m/min</span></div></label></div>
+     <div class="two-fields"><label class="field">Alimentação<div class="input-unit"><input id="inflow" type="number" min="1" max="500" step=".1" value="90"><span>cx/min</span></div></label><label class="field">Transferência<div class="input-unit"><input id="cycle" type="number" min=".2" step=".1" value="3"><span>s/cx</span></div></label></div>
+     <label class="field">Linha alternativa ativa<select id="alternative"><option value="G22">G22 · E18 desligada</option><option value="E18">E18 · G22 desligada</option></select></label>
+    </fieldset>
+    <details class="advanced"><summary>Controle e dimensões avançadas <span>＋</span></summary>
+     <label class="field">Reposição dos ramais<select id="control"><option value="paced">Intercalada pelo consumo</option><option value="level">Contínua do mínimo ao máximo</option></select></label>
+     <div class="two-fields"><label class="field">Recuperação de estoque<div class="input-unit"><input id="recovery" type="number" min="0" max="100" step="1" value="5"><span>%</span></div></label><label class="field">Margem dos mínimos<div class="input-unit"><input id="waitMargin" type="number" min="0" max="600" step="5" value="60"><span>s</span></div></label></div>
+     <label class="field">Extensão modelada da principal<div class="input-unit"><input id="mainLength" type="number" min="1" step="any"><span>m</span></div></label>
+     <div class="two-fields"><label class="field">Caixa na principal<div class="input-unit"><input id="mainPitch" type="number" min="10" step="1" value="290"><span>mm</span></div></label><label class="field">Caixa nos ramais<div class="input-unit"><input id="branchPitch" type="number" min="10" step="1" value="464"><span>mm</span></div></label></div>
+     <p class="field-note">Mudar a extensão da principal escala as distâncias entre seus pontos. Os ramais podem ser editados individualmente na tabela.</p>
+    </details>
+    <button class="button run" id="runButton" type="submit" disabled><span>▶</span> Simular produção <span class="run-arrow">↗</span></button>
+    <p id="dirtyNote" class="dirty-note" aria-live="polite">Configuração de referência pronta.</p>
+   </form>
+   <div class="model-note"><span class="note-icon">i</span><p>Modelo preliminar, com freios locais e acúmulo em cascata. Sensores e geometria exigem validação em campo.</p></div>
   </aside>
-  <main class="workspace">
-    <header class="page-heading"><div><p class="eyebrow">Layout 03</p><h2>Uma visão completa do fluxo.</h2><p>Da alimentação à última máquina, caixa por caixa.</p></div><span class="reference-badge">Cenário de referência</span></header>
-    <p id="error" class="error" role="alert" hidden></p>
-    <section class="metrics" aria-label="Indicadores do cenário">
-      <article><span>Demanda total</span><strong id="total-demand">—</strong><small>caixas/min</small></article>
-      <article><span>Caixas consumidas</span><strong id="total-used">0</strong><small>pelas máquinas</small></article>
-      <article><span>Caixas no sistema</span><strong id="total-system">0</strong><small>em trânsito ou acumuladas</small></article>
-      <article><span>Faltas de caixa</span><strong id="total-missed">0</strong><small>ciclos sem caixa</small></article>
-    </section>
-    <section class="simulation-panel" id="map-panel" aria-label="Planta de distribuição">
-      <header class="map-toolbar">
-        <div class="map-title"><i aria-hidden="true"></i> Planta de distribuição <span id="status" role="status">Pronto</span></div>
-        <div class="map-actions" role="group" aria-label="Área da planta"><button type="button" data-view="all" aria-pressed="true">Enquadrar</button><button type="button" data-view="inlet" aria-pressed="false">Entrada</button><button type="button" id="fullscreen">Tela cheia</button></div>
-      </header>
-      <div class="map">
-        <canvas id="layout" aria-label="Planta do Layout 03 com dois ramais e entrada à direita"></canvas>
-        <span id="map-caption" class="map-caption">Simulação 2D · vista superior</span>
-        <div class="map-stock" id="map-stock" hidden><span>Máquina selecionada</span><strong id="map-stock-name"></strong><b id="map-stock-value"></b></div>
-        <div class="legend"><span><i class="dot upper"></i> Superior</span><span><i class="dot lower"></i> Inferior</span><span><i class="dot box"></i> Caixa</span></div>
-        <span id="phase" class="phase">Partida 50/50</span>
-      </div>
-      <div class="playback">
-        <button id="play" class="play-button">Iniciar</button><div class="time-readout"><strong id="clock">00:00:00</strong><span id="total-clock">/ 08:00:00</span></div>
-        <input id="timeline" type="range" min="0" max="28800" value="0" step="1" aria-label="Posição na simulação">
-        <label>Velocidade <select id="speed"><option value="1">1×</option><option value="10">10×</option><option value="30">30×</option><option value="60" selected>60×</option><option value="300">300×</option><option value="900">900×</option></select></label>
-        <button id="reset" class="button" type="button">Reiniciar</button>
-      </div>
-    </section>
-    <section class="panel distribution" aria-label="Distribuição de caixas">
-      <div><h3>Distribuição</h3><div class="split-bar" aria-hidden="true"><i id="split-upper"></i><i></i></div><div class="split-values"><span id="upper-share">50% superior</span><span id="lower-share">50% inferior</span></div></div>
-      <div id="routes" class="routes"></div><div class="transfer"><span>Desvios ao outro ramal <b id="redirected">0</b></span><span>Espera na entrada <b id="held">0 s</b></span></div>
-    </section>
-    <section class="panel analysis" aria-labelledby="analysis-title">
-      <header class="panel-heading"><div><p class="eyebrow">Produção ao longo do tempo</p><h2 id="analysis-title">Consumo, estoque e faltas de caixa.</h2><p>Escolha a linha, o intervalo do gráfico e a janela do ensaio.</p></div><button id="export-history" class="button">Exportar histórico CSV</button></header>
-      <div class="analysis-controls">
-        <label>Linha <select id="analysis-line"><option value="all">Todas as linhas</option><option value="upper">Ramal superior</option><option value="lower">Ramal inferior</option></select></label>
-        <label>Intervalo <select id="analysis-interval"><option value="1">1 minuto</option><option value="5">5 minutos</option><option value="15">15 minutos</option><option value="60">1 hora</option></select></label>
-        <label>Janela <select id="analysis-window"><option value="0">Ensaio completo</option><option value="15">Últimos 15 min</option><option value="60">Última hora</option><option value="240">Últimas 4 horas</option></select></label>
-      </div>
-      <div class="analysis-metrics"><div><span>Demanda selecionada</span><strong id="analysis-demand">—</strong></div><div><span>Consumidas na janela</span><strong id="analysis-used">—</strong></div><div><span>Ciclos sem caixa</span><strong id="analysis-missed">—</strong></div><div><span>Atendimento dos ciclos</span><strong id="analysis-service">—</strong></div></div>
-      <div class="charts-grid">
-        <article class="chart wide-chart"><h3>Consumo instantâneo e demanda</h3><p>Caixas por minuto em cada intervalo</p><div id="chart-rate"></div></article>
-        <article class="chart"><h3>Quando faltam caixas</h3><p>Ciclos sem caixa por intervalo</p><div id="chart-missed"></div></article>
-        <article class="chart"><h3>Estoque na principal e nos ramais</h3><p>Caixas no fim de cada intervalo</p><div id="chart-stock"></div></article>
-        <article class="chart wide-chart"><h3>Alimentação efetiva e chegada às máquinas</h3><p>Caixas por minuto em cada intervalo</p><div id="chart-feed"></div></article>
-      </div>
-      <details class="shortage-panel"><summary>Registro das faltas por máquina <span id="shortage-count">0</span></summary><div class="table-wrap"><table><thead><tr><th>Máquina</th><th>Início</th><th>Retomada</th><th>Ciclos sem caixa</th></tr></thead><tbody id="shortage-rows"></tbody></table></div></details>
-    </section>
-    <section class="panel machine-panel">
-      <header class="panel-heading"><div><p class="eyebrow">Acúmulos</p><h2>Produção por máquina</h2><p>Selecione uma máquina para ver seu estoque no mapa e filtrar os gráficos.</p></div><button id="export" class="button">Exportar CSV</button></header>
-      <div class="table-wrap"><table><thead><tr><th>Máquina</th><th>Ramal</th><th>Demanda (cx/min)</th><th>Consumidas</th><th>Estoque</th><th>Faltas</th></tr></thead><tbody id="machine-rows"></tbody></table></div>
-    </section>
-  </main>
-</div>
-<dialog id="scenarios-dialog"><div class="panel-heading"><h2>Cenários salvos</h2><button id="close-scenarios" class="button">Fechar</button></div><div id="scenario-list"></div></dialog>
-<script type="module" src="./app.js"></script>
-</body>
-</html>
+
+  <section class="workspace">
+   <div class="page-heading"><div><div id="layoutName" class="eyebrow">LAYOUT 03 / SIMULAÇÃO II</div><h2>Uma visão completa do fluxo.</h2><p>Da alimentação à última máquina, caixa por caixa.</p></div><div class="layout-actions"><button id="editLayout" class="button">Editar layout ↗</button><button id="newLayout" class="button">Novo layout</button><div class="reference-badge"><i></i> <span id="scenarioLabel">Cenário de referência</span></div></div></div>
+   <div class="metrics">
+    <article class="metric"><div class="metric-label">Demanda das linhas habilitadas <span>↗</span></div><div><strong id="demandValue">83,46</strong><span class="unit">cx/min</span></div><p id="supplyNote">Alimentação nominal de 90 cx/min</p></article>
+    <article class="metric"><div class="metric-label">Caixas consumidas no período <span>□</span></div><div><strong id="consumedValue">—</strong><span class="unit">caixas</span></div><p id="periodNote">Simule para calcular a produção</p></article>
+    <article class="metric"><div class="metric-label">Ciclos sem caixa <span>⌁</span></div><div><strong id="missedValue">—</strong><span class="unit">ciclos</span></div><p id="startNote">Espera inicial apresentada separadamente</p></article>
+   </div>
+
+   <p id="splitNote" class="field-note" hidden></p>
+   <section class="simulation-panel" aria-label="Reprodução da simulação">
+    <div class="map-toolbar"><div class="map-title"><span class="live-dot"></span> Planta de distribuição <span class="map-chip" id="mapMode">PARTIDA DO ZERO</span></div><div class="map-actions"><button id="editStops" aria-expanded="false">Programar paradas</button><button id="editAccumulations" aria-expanded="false">Definir acúmulos</button><button id="original" aria-label="Abrir desenho cotado">Desenho cotado</button><button id="fitMap" aria-label="Enquadrar o mapa">Enquadrar</button><button id="fullscreen" aria-label="Tela cheia">⛶</button></div></div>
+    <div id="zoneEditor" class="zone-editor" hidden>
+     <div class="zone-heading"><strong>Defina onde as caixas podem acumular</strong><button id="closeZones" aria-label="Fechar editor de acúmulos">×</button></div>
+     <p>Escolha o transportador e marque dois pontos no desenho, ou informe as distâncias abaixo.</p>
+     <div class="zone-fields"><label>Transportador<select id="zoneTarget"><option value="main">Esteira principal</option></select></label><label>Início (m)<input id="zoneStart" type="number" min="0" step="any" value="0"></label><label>Fim (m)<input id="zoneEnd" type="number" min="0" step="any"></label><button id="pickZone" type="button">Marcar no desenho</button><button id="addZone" type="button">Adicionar trecho</button></div>
+     <div id="zoneReference" class="zone-reference"></div><div id="zoneList" class="zone-list"></div>
+     <div class="zone-footer"><button id="resetZones" type="button">Usar trecho completo</button><span id="zoneCapacity"></span></div>
+     <p class="zone-criteria">Os trechos alteram o estoque inicial e as capacidades. Na principal, o ensaio também sinaliza filas que ultrapassarem as áreas marcadas; novos freios e permissivos do PLC não são criados automaticamente.</p>
+     <div id="zoneResult" class="zone-result" role="status"></div>
+    </div>
+    <div id="stopEditor" class="zone-editor" hidden>
+     <div class="zone-heading"><strong>Paradas programadas</strong><button id="closeStops" aria-label="Fechar programação de paradas">×</button></div>
+     <p>Escolha um ponto na principal, nos ramais superior e inferior, no trecho de uma máquina ou na transferência. O tempo é contado desde 00:00:00 do ensaio, incluindo o pré-enchimento. As máquinas continuam consumindo suas reservas.</p>
+     <div class="stop-fields">
+      <label>Nome<input id="stopName" type="text" maxlength="80" placeholder="Ex.: manutenção"></label>
+      <label>Local<select id="stopTarget"><option value="main">Esteira principal</option></select></label>
+      <label>Distância do início (m)<input id="stopPosition" type="number" min="0" step="any" value="0"></label>
+      <button id="pickStop" type="button">Marcar no layout</button>
+      <label>Início no ensaio (HH:MM:SS)<input id="stopStart" type="text" inputmode="numeric" value="04:30:00" placeholder="04:30:00"></label>
+      <label>Duração (HH:MM:SS)<input id="stopDuration" type="text" inputmode="numeric" value="00:05:00" placeholder="00:05:00"></label>
+      <button id="addStop" type="button">Adicionar parada</button><button id="cancelStopEdit" type="button" hidden>Cancelar edição</button>
+     </div>
+     <p id="stopReference" class="field-note"></p><div id="stopList" class="zone-list"></div>
+     <p class="zone-criteria">A parada bloqueia a passagem no ponto. Na principal, as caixas a jusante continuam e a fila se propaga a montante. Nos ramais, as caixas em trânsito aguardam o ponto e retomam em sequência; as caixas já no estoque do ramal continuam disponíveis. O modelo usa a capacidade total do ramal, sem separar filas antes/depois do ponto. Parar uma transferência impede novos ciclos; um ciclo já iniciado é concluído.</p>
+    </div>
+    <div id="mapStage" class="map-stage"><canvas id="map" role="img" aria-label="Trajeto da principal com caixas e 21 ramais; selecione também pela tabela de linhas."></canvas><div class="map-grid-label">SIMULAÇÃO 2D <span>•</span> ESQUEMA DO TRAJETO</div><div id="selectedCard" class="selected-card"><span class="selected-kicker">LINHA SELECIONADA</span><h3 id="selectedName">PKB 3</h3><div class="stock-reading"><strong id="selectedStock">0</strong><span>/ <span id="selectedCapacity">23</span> caixas</span></div><div class="stock-track"><div id="stockFill"></div><i id="minMark"></i><i id="maxMark"></i></div><div class="stock-labels"><span id="selectedMin">Mínimo 15</span><span id="selectedMax">Máximo 16</span></div><div class="selected-status" id="selectedStatus">Aguardando simulação</div></div><div class="map-legend"><span><i class="legend-main"></i> Principal</span><span><i class="legend-stock"></i> Ramais</span><span><i class="legend-stop"></i> Freio ativo</span></div><div class="phase-badge" id="phaseBadge">Pronto para simular</div></div>
+    <div class="playback"><button id="play" class="play-button" disabled aria-label="Reproduzir">▶</button><div class="time-readout"><strong id="clock">00:00:00</strong><span id="totalClock">/ 08:00:00</span></div><input id="timeline" type="range" min="0" max="1" step="1" value="0" disabled aria-label="Posição na simulação"><label class="play-speed"><span class="sr-only">Velocidade de reprodução</span><select id="playSpeed"><option value="10">10×</option><option value="30">30×</option><option value="60" selected>60×</option><option value="300">300×</option><option value="900">900×</option></select></label></div>
+    <div class="playback-caption"><span id="sampleNote">Os parâmetros alterados entram no próximo ensaio.</span><span>Arraste para mover · role para ampliar</span></div>
+   </section>
+
+   <section id="stopReport" class="analytics-panel" hidden aria-label="Impacto e recuperação das paradas">
+    <div class="analytics-heading"><div><div class="eyebrow">PARADAS E RETOMADA</div><h2>Faltas e recuperação dos acúmulos.</h2><p>Referência: estoque imediatamente antes de cada parada. O tempo de recuperação começa na retomada. Cada acúmulo precisa atingir novamente sua referência ao menos uma vez; não exige que todos coincidam no mesmo instante.</p></div></div>
+    <div id="stopResults"></div>
+    <p class="field-note">As faltas são as observadas desde o início da parada até a recuperação ou o fim do ensaio. Paradas sobrepostas podem contar as mesmas faltas; estes números não devem ser somados. Use os gráficos para acompanhar a recuperação durante a produção.</p>
+   </section>
+
+   <section id="analytics" class="analytics-panel" aria-label="Gráficos e ocorrências da produção">
+    <div class="analytics-heading"><div><div class="eyebrow">PRODUÇÃO AO LONGO DO TEMPO</div><h2>Consumo, estoque e cada falta de caixa.</h2><p>Analise o período inteiro ou aproxime uma janela da operação.</p></div><button id="exportHistory" class="button" disabled>Exportar histórico CSV ↓</button></div>
+    <fieldset id="analyticsFilters" class="analytics-filters" disabled>
+     <label>Linha<select id="analyticsLine"><option value="-1">Todas as linhas</option></select></label>
+     <label>Intervalo do gráfico<select id="analyticsInterval"><option value="60">1 minuto</option></select></label>
+     <label>De (min)<input id="analyticsFrom" type="number" min="0" step="any" value="0"></label>
+     <label>Até (min)<input id="analyticsTo" type="number" min="0" step="any" value="480"></label>
+     <button id="applyAnalytics" type="button" class="button">Aplicar janela</button><button id="resetAnalytics" type="button" class="text-button">Período inteiro</button>
+    </fieldset>
+    <details id="analyticsSelection" class="analytics-selection"><summary>Selecionar várias linhas para a análise <span id="analyticsSelectionCount">Execute um ensaio</span></summary><div class="selection-actions"><button id="selectActiveLines" type="button" class="button">Todas as ativas</button><button id="clearAnalysisLines" type="button" class="button ghost">Limpar seleção</button></div><div id="analyticsLineChoices" class="analysis-line-choices"></div><p>A seleção soma as caixas/min no display e filtra os gráficos. Não liga ou desliga máquinas na operação simulada.</p></details>
+    <div id="analyticsEmpty" class="analytics-empty"><span>⌁</span><strong>O histórico aparece depois da simulação.</strong><p>Os gráficos vão mostrar o consumo realizado, a demanda das máquinas, os estoques e os horários de falta.</p></div>
+    <div id="analyticsContent" hidden>
+     <div class="analytics-stats"><div class="selected-rate-stat"><span>Demanda das linhas selecionadas</span><div class="selected-rate-reading"><strong id="selectedRateValue">—</strong><b>cx/min</b></div><small id="selectedRateNote">Nenhuma linha selecionada</small></div><div><span>Consumidas na janela</span><strong id="historyConsumed">—</strong></div><div><span>Ciclos sem caixa</span><strong id="historyMissed">—</strong></div><div><span>Atendimento dos ciclos</span><strong id="historyService">—</strong></div><div><span>Primeira falta na janela</span><strong id="historyFirstGap">—</strong></div></div>
+     <p id="analyticsResolution" class="analytics-resolution" aria-live="polite"></p>
+     <div class="charts-grid">
+      <article class="chart-card chart-wide"><div class="chart-heading"><div><h3>Consumo instantâneo e demanda</h3><p>Taxa em caixas/min, calculada em cada intervalo do gráfico.</p></div><span>cx/min</span></div><div id="consumptionLegend" class="chart-legend"></div><div id="consumptionChart" class="time-chart"></div></article>
+      <article class="chart-card"><div class="chart-heading"><div><h3>Quando faltam caixas</h3><p>Ciclos de consumo sem caixa, após a liberação da máquina.</p></div><span>ciclos</span></div><div id="shortageLegend" class="chart-legend"></div><div id="shortageChart" class="time-chart"></div></article>
+      <article class="chart-card"><div class="chart-heading"><div><h3 id="stockChartTitle">Estoque na principal e nos ramais</h3><p>Quantidade de caixas ao fim de cada intervalo.</p></div><span>caixas</span></div><div id="stockLegend" class="chart-legend"></div><div id="stockChart" class="time-chart"></div></article>
+      <article class="chart-card chart-wide"><div class="chart-heading"><div><h3 id="feedChartTitle">Alimentação efetiva e chegada aos ramais</h3><p id="feedChartNote">A alimentação nominal pode pausar quando não há espaço na principal.</p></div><span>cx/min</span></div><div id="feedLegend" class="chart-legend"></div><div id="feedChart" class="time-chart"></div></article>
+     </div>
+     <section class="instant-stock-section"><div class="instant-stock-heading"><div><h3>Caixas instantâneas em cada linha</h3><p id="instantStockNote">Um gráfico de estoque por linha selecionada, na janela de tempo acima.</p></div><button id="exportInstantStocks" class="button">Exportar estoques CSV ↓</button></div><div class="instant-stock-legend"><span>Traço: caixas registradas no ramal</span><span>Verde: mínimo/máximo entre registros</span><span>Cinza: aguardando liberação</span><span>Vermelho: falta registrada</span><strong id="instantStockClock">Instante da reprodução: —</strong></div><div id="instantStocksGrid" class="instant-stocks-grid"></div></section>
+     <div class="shortage-events"><div class="events-heading"><div><h3>Registro das faltas por máquina</h3><p id="eventsNote">Horários relativos ao início do ensaio.</p></div><button id="exportShortages" class="button">Exportar ocorrências CSV ↓</button></div><div class="table-scroll"><table><thead><tr><th>Linha</th><th>Início da falta</th><th>Caixa disponível em</th><th>Espera por caixa</th><th>Ciclos sem caixa</th><th></th></tr></thead><tbody id="shortageEventsBody"></tbody></table></div></div>
+     <p class="analytics-footnote">Faixas vermelhas indicam intervalos com faltas. O sombreado cinza indica espera de partida. Clique em um gráfico ou em uma ocorrência para ver o instante no layout. A espera por caixa é medida da primeira solicitação não atendida até a chegada de uma caixa; não inclui a espera anterior à liberação da produção.</p>
+    </div>
+   </section>
+   <div id="analyticsTooltip" class="analytics-tooltip" hidden></div>
+
+   <section class="lines-panel">
+    <div class="lines-heading"><div><div class="eyebrow">ACÚMULOS & SENSORES</div><h2>Cada linha, no seu ritmo.</h2></div><div class="line-actions"><button id="autoSensors" class="button ghost">Recalcular sensores</button><button id="exportCSV" class="button">Exportar CSV ↓</button></div></div>
+    <div class="table-scroll"><table><thead><tr><th>Linha</th><th>Consumo<br><span>cx/min</span></th><th>Acúmulo útil<br><span>m</span></th><th>Capacidade<br><span>caixas</span></th><th>Nível mín.<br><span>caixas</span></th><th>Nível máx.<br><span>caixas</span></th><th>Sensor mín. / máx.<br><span>m da máquina</span></th><th>Consumo / faltas<br><span>no período</span></th></tr></thead><tbody id="linesBody"></tbody></table></div>
+    <div class="table-footnote"><span>464 mm de avanço nos ramais. Capacidade baseada no acúmulo útil de cada linha.</span><span>Posições de sensores são referências de pré-dimensionamento.</span></div>
+   </section>
+
+   <section class="bottom-grid"><div class="assumptions"><div class="eyebrow">TRANSPARÊNCIA DO MODELO</div><h3>As condições fazem parte do resultado.</h3><p>A partida do zero usa pré-enchimento como padrão. A reposição intercalada e o controle de caixas em trânsito são uma proposta de lógica, e precisam existir no PLC para reproduzir o cenário.</p><button id="openAssumptions" class="text-button">Ver hipóteses e critérios ↗</button></div><div class="export-panel"><div class="eyebrow">LEVE O CENÁRIO COM VOCÊ</div><h3>Seus dados, suas comparações.</h3><div class="export-actions"><button class="button" id="exportJSON">Exportar cenário</button><button class="button" id="importJSON">Importar cenário</button><button class="button" id="recordVideo">Gravar vídeo</button></div><input id="importFile" type="file" accept="application/json,.json" hidden></div></section>
+   <footer><span><b>fluxo.</b> Planeje. Simule. Compare.</span><span>Simulação de engenharia · versão inicial</span></footer>
+  </section>
+ </main>
+ <div id="progressOverlay" class="progress-overlay" hidden><div class="progress-card"><div class="spinner"></div><h2>Simulando sua produção</h2><p id="progressText">Preparando o fluxo das caixas…</p><div class="calculation-track"><div id="progressFill"></div></div><button id="cancelRun" class="button">Cancelar cálculo</button></div></div>
+ <div id="toast" class="toast" role="status" hidden></div>
+ <dialog id="modal"><div class="modal-head"><h2 id="modalTitle"></h2><button id="closeModal" class="icon-button" aria-label="Fechar">×</button></div><div id="modalBody"></div></dialog>
+ <dialog id="layoutModal" class="layout-editor-modal">
+  <div class="layout-editor-head"><div><span class="eyebrow">EDITOR DE LAYOUT 2D</span><h2>Desenhe a sua aplicação.</h2></div><div><button id="ldNewBlank" class="button">Do zero</button><button id="ldImport" class="button">Importar layout</button><button id="ldExport" class="button">Salvar desenho JSON</button><button id="ldCancel" class="icon-button" aria-label="Fechar sem aplicar">×</button></div></div>
+  <div class="layout-editor-toolbar" role="toolbar" aria-label="Ferramentas de desenho"><button id="ldSelect" type="button">Selecionar / mover</button><button id="ldMain" type="button">Traçar principal</button><button id="ldBranch" type="button">Adicionar linha / ramal</button><button id="ldPoint" type="button">Inserir ponto</button><button id="ldFinish" type="button">Concluir traçado ✓</button><button id="ldDelete" type="button">Excluir seleção</button><button id="ldUndo" type="button" aria-label="Desfazer">↶</button><button id="ldRedo" type="button" aria-label="Refazer">↷</button><button id="ldFit" type="button">Enquadrar</button><label><input id="ldSnap" type="checkbox" checked> Grade <select id="ldGrid"><option value=".1">0,1 m</option><option value=".5" selected>0,5 m</option><option value="1">1 m</option><option value="2">2 m</option></select></label><label><input id="ldOrtho" type="checkbox" checked> Novos segmentos ortogonais</label></div>
+  <div class="layout-editor-body"><div id="ldStage" class="layout-editor-stage"><canvas id="ldCanvas" tabindex="0" role="img" aria-label="Editor de trajetos em metros. As coordenadas dos pontos também podem ser editadas no painel lateral."></canvas><span id="ldToolHint" class="layout-tool-hint">Selecione um ponto para mover ou editar suas coordenadas.</span></div><aside class="layout-inspector">
+   <label>Nome do projeto<input id="ldProjectName" type="text" maxlength="100"></label><p id="ldSummary" class="layout-summary"></p>
+   <section id="ldNodeProps" hidden><h3>Ponto selecionado</h3><div class="two-fields"><label>X (m)<input id="ldX" type="number" step="any"></label><label>Y (m)<input id="ldY" type="number" step="any"></label></div></section>
+   <section id="ldLineProps" hidden><h3>Linha / máquina</h3><label>Nome da linha<input id="ldLineName" type="text" maxlength="80"></label><label>Consumo (cx/min)<input id="ldRate" type="number" min="0" max="300" step="any"></label><label class="layout-check"><input id="ldEnabled" type="checkbox"> Linha habilitada</label><label class="layout-check"><input id="ldAutoLength" type="checkbox"> Todo o ramal pode acumular</label><label>Comprimento útil para acúmulo (m)<input id="ldUsable" type="number" min=".01" step="any"></label><p id="ldBranchLength" class="layout-summary"></p></section>
+   <section><h3>Trechos de acúmulo</h3><label>Transportador<select id="ldZoneTarget"><option value="main">Principal</option></select></label><div class="two-fields"><label>Início (m)<input id="ldZoneStart" type="number" min="0" step="any" value="0"></label><label>Fim (m)<input id="ldZoneEnd" type="number" min="0" step="any"></label></div><p id="ldZoneReference" class="layout-summary"></p><div class="layout-zone-actions"><button id="ldMarkZone" type="button" class="button">Marcar A e B</button><button id="ldAddZone" type="button" class="button">Adicionar</button></div><div id="ldZoneList"></div><button id="ldFullZone" type="button" class="text-button">Usar todo o trecho</button></section>
+   <section><h3>Linhas do projeto</h3><div id="ldLineList"></div></section>
+  </aside></div>
+  <div class="layout-editor-footer"><p id="ldStatus" role="status">Uma principal contínua, da alimentação ao fim, com ramais para as máquinas. Cruzamentos visuais não criam novas conexões.</p><button id="ldApply" class="button">Usar este layout na simulação ↗</button></div>
+  <input id="ldFile" type="file" accept="application/json,.json" hidden>
+ </dialog>
+ <script type="module" src="app.js?v=8"></script>
+</body></html>
