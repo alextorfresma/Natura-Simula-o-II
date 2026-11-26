@@ -6,7 +6,7 @@ Simulador de distribuição de caixas com uma entrada e dois ramais. A geometria
 
 Com Node.js 22 ou superior, execute `npm run dev` e abra **http://localhost:4173**. Não há pacotes de terceiros para instalar. `PORT` e `HOST` permitem mudar o endereço de escuta.
 
-Use **Iniciar** para acompanhar as caixas ou **Simular até o fim** para calcular o turno. **Entrada** aproxima o ponto de distribuição. **Configurar cenário** permite alterar velocidades, alimentação, duração, tempo inicial 50/50 e demanda de cada máquina. **Exportar CSV** salva as contagens por máquina no formato separado por ponto e vírgula.
+Use **Simular produção** para calcular o turno, ou **Iniciar** para acompanhar as caixas. A linha do tempo recalcula a posição exata das caixas ao voltar ou avançar. Os gráficos mostram consumo, demanda, estoque, faltas e alimentação por ramal ou máquina. Use os filtros para escolher a janela e o intervalo de agregação. O histórico CSV exporta todo o ensaio calculado para a seleção de linhas atual. **Entrada** aproxima o ponto de distribuição. **Configurar cenário** permite alterar velocidades, alimentação, duração, tempo inicial 50/50 e demanda de cada máquina. **Exportar CSV** salva as contagens por máquina no formato separado por ponto e vírgula.
 
 ## Modelo
 

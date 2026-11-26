@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "node serve.js",
     "test": "node --test",
-    "check": "node --check serve.js && node --check dist/layout.js && node --check dist/model.js && node --check dist/app.js"
+    "check": "node --check serve.js && node --check dist/layout.js && node --check dist/model.js && node --check dist/app.js && node --check dist/analytics.js && node --check dist/charts.js"
   },
   "engines": { "node": ">=22" }
 }

@@ -3,87 +3,101 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#172522">
+  <meta name="theme-color" content="#000102">
   <title>Simulação II · Fluxo de caixas</title>
   <link rel="stylesheet" href="./style.css">
 </head>
 <body>
-  <header class="top"><div class="shell top-content">
-    <span class="brand"><i aria-hidden="true"></i> Simulação II</span>
-    <span class="top-label">Fluxo de caixas</span>
-  </div></header>
-  <main class="shell">
-    <section class="intro">
-      <div><p class="eyebrow">LAYOUT 03</p><h1>Simulador de distribuição</h1><p>Uma entrada de caixas, dois ramais de produção.</p></div>
-      <button id="config-open" class="button secondary">Configurar cenário</button>
-    </section>
+<header class="topbar">
+  <div class="brand"><span class="brandmark" aria-hidden="true">▣</span> Fluxo<span class="brand-dot">.</span><span class="brand-sub">SIMULAÇÃO II</span></div>
+  <div class="top-actions"><span class="reference-badge">Estudo de engenharia</span><button id="save-scenario" class="button">Salvar cenário</button><button id="compare-scenarios" class="button">Comparar <span id="saved-count">0</span></button></div>
+</header>
+<div class="shell">
+  <aside class="sidebar">
+    <div class="section-heading"><span class="eyebrow">Configuração</span><button id="defaults" form="settings-form" type="button" class="text-button">Restaurar</button></div>
+    <h1>O seu próximo cenário começa aqui.</h1>
+    <p class="sidebar-intro">Configure a alimentação, o estoque inicial e a divisão entre os ramais do Layout 03.</p>
+    <form id="settings-form">
+      <fieldset><legend>Período de produção</legend>
+        <label class="field">Duração do ensaio <span class="input-unit"><input name="hours" type="number" min="0.016666666666666666" max="24" step="any" required><span>horas</span></span></label>
+        <div class="quick-presets"><button type="button" data-hours="8">8 h</button><button type="button" data-hours="16">16 h</button><button type="button" data-hours="24">1 dia</button></div>
+      </fieldset>
+      <fieldset><legend>Estoque na partida</legend>
+        <div class="segmented"><button type="button" data-stock="0">Do zero</button><button type="button" data-stock="100">Tudo cheio</button></div>
+        <label class="range-field"><span>Acúmulo da principal <output id="mainInitial-value">0%</output></span><input name="mainInitial" type="range" min="0" max="100" step="5"></label>
+        <label class="range-field"><span>Acúmulo das máquinas <output id="branchInitial-value">0%</output></span><input name="branchInitial" type="range" min="0" max="100" step="5"></label>
+      </fieldset>
+      <fieldset><legend>Transporte e alimentação</legend>
+        <div class="two-fields">
+          <label class="field">Principal <span class="input-unit"><input name="mainSpeed" type="number" min="1" max="300" step="any" required><span>m/min</span></span></label>
+          <label class="field">Ramais <span class="input-unit"><input name="branchSpeed" type="number" min="1" max="300" step="any" required><span>m/min</span></span></label>
+          <label class="field">Alimentação <span class="input-unit"><input name="feed" type="number" min="0" max="1000" step="any" required><span>cx/min</span></span></label>
+          <label class="field">Transferência <span class="input-unit"><input name="cycle" type="number" min="0.2" max="120" step="any" required><span>s/cx</span></span></label>
+        </div>
+        <label class="field">Linha alternativa ativa <select name="alternative"><option>G22</option><option>E18</option></select></label>
+        <label class="field">Duração da divisão 50/50 <span class="input-unit"><input name="warmup" type="number" min="0" max="3600" step="any" required><span>s</span></span></label>
+      </fieldset>
+      <details class="advanced"><summary>Consumo por máquina</summary><p>Valores em cx/min. Use zero para desligar a máquina.</p><div id="rate-fields"></div></details>
+      <p id="config-error" class="error" role="alert" hidden></p>
+      <button class="button run" id="finish" type="submit">▶　Simular produção</button>
+      <p class="sidebar-intro">Caixa de 464 × 290 × 214 mm. Demanda de referência com a margem de 5% já incluída.</p>
+    </form>
+  </aside>
+  <main class="workspace">
+    <header class="page-heading"><div><p class="eyebrow">Layout 03</p><h2>Uma visão completa do fluxo.</h2><p>Da alimentação à última máquina, caixa por caixa.</p></div><span class="reference-badge">Cenário de referência</span></header>
     <p id="error" class="error" role="alert" hidden></p>
     <section class="metrics" aria-label="Indicadores do cenário">
-      <article><span>Demanda total</span><strong id="total-demand">—</strong><small>caixas/min · margem já incluída</small></article>
+      <article><span>Demanda total</span><strong id="total-demand">—</strong><small>caixas/min</small></article>
       <article><span>Caixas consumidas</span><strong id="total-used">0</strong><small>pelas máquinas</small></article>
       <article><span>Caixas no sistema</span><strong id="total-system">0</strong><small>em trânsito ou acumuladas</small></article>
-      <article><span>Faltas de caixa</span><strong id="total-missed">0</strong><small>ciclos de consumo sem caixa</small></article>
+      <article><span>Faltas de caixa</span><strong id="total-missed">0</strong><small>ciclos sem caixa</small></article>
     </section>
-    <div class="workspace">
-      <section class="panel map-panel">
-        <header class="panel-heading">
-          <div><h2>Layout da linha</h2><p id="map-caption">Vista superior · Layout 03</p></div>
-          <div class="segmented" role="group" aria-label="Área do layout">
-            <button type="button" data-view="all" aria-pressed="true">Geral</button>
-            <button type="button" data-view="inlet" aria-pressed="false">Entrada</button>
-          </div>
-        </header>
-        <div class="map">
-          <canvas id="layout" aria-label="Planta esquemática do Layout 03 com a entrada à direita e as esteiras dos ramais superior e inferior"></canvas>
-        </div>
-        <footer class="legend">
-          <span><i class="dot upper"></i> Ramal superior</span>
-          <span><i class="dot lower"></i> Ramal inferior</span>
-          <span><i class="dot box"></i> Caixa</span>
-          <span class="dimension">464 × 290 × 214 mm</span>
-        </footer>
-      </section>
-      <aside class="panel control-panel">
-        <div class="panel-heading"><div><h2>Controle</h2><p id="phase">Partida 50/50</p></div><span id="status" class="status" role="status">Pronto</span></div>
-        <div class="control-body">
-          <div class="timer"><span>Tempo simulado</span><strong id="clock">00:00:00</strong><progress id="progress" max="100" value="0" aria-label="Progresso do ensaio"></progress></div>
-          <div class="actions">
-            <button id="play" class="button primary">Iniciar</button>
-            <button id="reset" class="button secondary">Reiniciar</button>
-          </div>
-          <div class="speed"><label for="speed">Velocidade de reprodução</label><select id="speed"><option value="1">1×</option><option value="10" selected>10×</option><option value="30">30×</option><option value="60">60×</option></select></div>
-          <button id="finish" class="button secondary wide">Simular até o fim</button>
-          <div class="divider"></div>
-          <h3>Distribuição</h3>
-          <div class="split-bar" aria-hidden="true"><i id="split-upper"></i><i></i></div>
-          <div class="split-values"><span id="upper-share">50% superior</span><span id="lower-share">50% inferior</span></div>
-          <div id="routes" class="routes"></div>
-          <div class="transfer"><span>Desvios ao outro ramal <b id="redirected">0</b></span><span>Espera na entrada <b id="held">0 s</b></span></div>
-        </div>
-      </aside>
-    </div>
+    <section class="simulation-panel" id="map-panel" aria-label="Planta de distribuição">
+      <header class="map-toolbar">
+        <div class="map-title"><i aria-hidden="true"></i> Planta de distribuição <span id="status" role="status">Pronto</span></div>
+        <div class="map-actions" role="group" aria-label="Área da planta"><button type="button" data-view="all" aria-pressed="true">Enquadrar</button><button type="button" data-view="inlet" aria-pressed="false">Entrada</button><button type="button" id="fullscreen">Tela cheia</button></div>
+      </header>
+      <div class="map">
+        <canvas id="layout" aria-label="Planta do Layout 03 com dois ramais e entrada à direita"></canvas>
+        <span id="map-caption" class="map-caption">Simulação 2D · vista superior</span>
+        <div class="map-stock" id="map-stock" hidden><span>Máquina selecionada</span><strong id="map-stock-name"></strong><b id="map-stock-value"></b></div>
+        <div class="legend"><span><i class="dot upper"></i> Superior</span><span><i class="dot lower"></i> Inferior</span><span><i class="dot box"></i> Caixa</span></div>
+        <span id="phase" class="phase">Partida 50/50</span>
+      </div>
+      <div class="playback">
+        <button id="play" class="play-button">Iniciar</button><div class="time-readout"><strong id="clock">00:00:00</strong><span id="total-clock">/ 08:00:00</span></div>
+        <input id="timeline" type="range" min="0" max="28800" value="0" step="1" aria-label="Posição na simulação">
+        <label>Velocidade <select id="speed"><option value="1">1×</option><option value="10">10×</option><option value="30">30×</option><option value="60" selected>60×</option><option value="300">300×</option><option value="900">900×</option></select></label>
+        <button id="reset" class="button" type="button">Reiniciar</button>
+      </div>
+    </section>
+    <section class="panel distribution" aria-label="Distribuição de caixas">
+      <div><h3>Distribuição</h3><div class="split-bar" aria-hidden="true"><i id="split-upper"></i><i></i></div><div class="split-values"><span id="upper-share">50% superior</span><span id="lower-share">50% inferior</span></div></div>
+      <div id="routes" class="routes"></div><div class="transfer"><span>Desvios ao outro ramal <b id="redirected">0</b></span><span>Espera na entrada <b id="held">0 s</b></span></div>
+    </section>
+    <section class="panel analysis" aria-labelledby="analysis-title">
+      <header class="panel-heading"><div><p class="eyebrow">Produção ao longo do tempo</p><h2 id="analysis-title">Consumo, estoque e faltas de caixa.</h2><p>Escolha a linha, o intervalo do gráfico e a janela do ensaio.</p></div><button id="export-history" class="button">Exportar histórico CSV</button></header>
+      <div class="analysis-controls">
+        <label>Linha <select id="analysis-line"><option value="all">Todas as linhas</option><option value="upper">Ramal superior</option><option value="lower">Ramal inferior</option></select></label>
+        <label>Intervalo <select id="analysis-interval"><option value="1">1 minuto</option><option value="5">5 minutos</option><option value="15">15 minutos</option><option value="60">1 hora</option></select></label>
+        <label>Janela <select id="analysis-window"><option value="0">Ensaio completo</option><option value="15">Últimos 15 min</option><option value="60">Última hora</option><option value="240">Últimas 4 horas</option></select></label>
+      </div>
+      <div class="analysis-metrics"><div><span>Demanda selecionada</span><strong id="analysis-demand">—</strong></div><div><span>Consumidas na janela</span><strong id="analysis-used">—</strong></div><div><span>Ciclos sem caixa</span><strong id="analysis-missed">—</strong></div><div><span>Atendimento dos ciclos</span><strong id="analysis-service">—</strong></div></div>
+      <div class="charts-grid">
+        <article class="chart wide-chart"><h3>Consumo instantâneo e demanda</h3><p>Caixas por minuto em cada intervalo</p><div id="chart-rate"></div></article>
+        <article class="chart"><h3>Quando faltam caixas</h3><p>Ciclos sem caixa por intervalo</p><div id="chart-missed"></div></article>
+        <article class="chart"><h3>Estoque na principal e nos ramais</h3><p>Caixas no fim de cada intervalo</p><div id="chart-stock"></div></article>
+        <article class="chart wide-chart"><h3>Alimentação efetiva e chegada às máquinas</h3><p>Caixas por minuto em cada intervalo</p><div id="chart-feed"></div></article>
+      </div>
+      <details class="shortage-panel"><summary>Registro das faltas por máquina <span id="shortage-count">0</span></summary><div class="table-wrap"><table><thead><tr><th>Máquina</th><th>Início</th><th>Retomada</th><th>Ciclos sem caixa</th></tr></thead><tbody id="shortage-rows"></tbody></table></div></details>
+    </section>
     <section class="panel machine-panel">
-      <header class="panel-heading"><div><h2>Produção por máquina</h2><p>Consumo configurado, atendimento e estoque durante o ensaio.</p></div><button id="export" class="button secondary">Exportar CSV</button></header>
+      <header class="panel-heading"><div><p class="eyebrow">Acúmulos</p><h2>Produção por máquina</h2><p>Selecione uma máquina para ver seu estoque no mapa e filtrar os gráficos.</p></div><button id="export" class="button">Exportar CSV</button></header>
       <div class="table-wrap"><table><thead><tr><th>Máquina</th><th>Ramal</th><th>Demanda (cx/min)</th><th>Consumidas</th><th>Estoque</th><th>Faltas</th></tr></thead><tbody id="machine-rows"></tbody></table></div>
     </section>
   </main>
-  <dialog id="settings">
-    <form id="settings-form">
-      <div class="dialog-head"><div><h2>Configurar cenário</h2><p>Aplicar os parâmetros reinicia o ensaio.</p></div><button id="config-close" class="button secondary" type="button" aria-label="Fechar">Fechar</button></div>
-      <div class="fields">
-        <label>Alimentação (cx/min)<input name="feed" type="number" min="0" max="1000" step="any" required></label>
-        <label>Duração (h)<input name="hours" type="number" min="0.016666666666666666" max="24" step="any" required></label>
-        <label>Velocidade da entrada (m/min)<input name="mainSpeed" type="number" min="1" max="300" step="any" required></label>
-        <label>Velocidade dos ramais (m/min)<input name="branchSpeed" type="number" min="1" max="300" step="any" required></label>
-        <label>Ciclo de transferência à máquina (s)<input name="cycle" type="number" min="0.2" max="120" step="any" required></label>
-        <label>Duração da divisão 50/50 (s)<input name="warmup" type="number" min="0" max="3600" step="any" required></label>
-        <label>Saída alternativa <select name="alternative"><option>G22</option><option>E18</option></select></label>
-      </div>
-      <details><summary>Consumo por máquina (cx/min)</summary><p>Os valores da planilha já incluem a margem de 5%. Use zero para desligar uma máquina.</p><div id="rate-fields" class="fields"></div></details>
-      <p id="config-error" class="error" role="alert" hidden></p>
-      <div class="dialog-actions"><button id="defaults" class="button secondary" type="button">Restaurar referência</button><button class="button primary">Aplicar cenário</button></div>
-    </form>
-  </dialog>
-  <script type="module" src="./app.js"></script>
+</div>
+<dialog id="scenarios-dialog"><div class="panel-heading"><h2>Cenários salvos</h2><button id="close-scenarios" class="button">Fechar</button></div><div id="scenario-list"></div></dialog>
+<script type="module" src="./app.js"></script>
 </body>
 </html>
