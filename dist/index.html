@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#172522">
+  <title>Simulação II · Fluxo de caixas</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <header class="top"><div class="shell top-content">
+    <span class="brand"><i aria-hidden="true"></i> Simulação II</span>
+    <span class="top-label">Fluxo de caixas</span>
+  </div></header>
+  <main class="shell">
+    <section class="intro">
+      <div><p class="eyebrow">LAYOUT 03</p><h1>Simulador de distribuição</h1><p>Uma entrada de caixas, dois ramais de produção.</p></div>
+      <button id="config-open" class="button secondary">Configurar cenário</button>
+    </section>
+    <p id="error" class="error" role="alert" hidden></p>
+    <section class="metrics" aria-label="Indicadores do cenário">
+      <article><span>Demanda total</span><strong id="total-demand">—</strong><small>caixas/min · margem já incluída</small></article>
+      <article><span>Caixas consumidas</span><strong id="total-used">0</strong><small>pelas máquinas</small></article>
+      <article><span>Caixas no sistema</span><strong id="total-system">0</strong><small>em trânsito ou acumuladas</small></article>
+      <article><span>Faltas de caixa</span><strong id="total-missed">0</strong><small>ciclos de consumo sem caixa</small></article>
+    </section>
+    <div class="workspace">
+      <section class="panel map-panel">
+        <header class="panel-heading">
+          <div><h2>Layout da linha</h2><p id="map-caption">Vista superior · Layout 03</p></div>
+          <div class="segmented" role="group" aria-label="Área do layout">
+            <button type="button" data-view="all" aria-pressed="true">Geral</button>
+            <button type="button" data-view="inlet" aria-pressed="false">Entrada</button>
+          </div>
+        </header>
+        <div class="map">
+          <canvas id="layout" aria-label="Planta esquemática do Layout 03 com a entrada à direita e as esteiras dos ramais superior e inferior"></canvas>
+        </div>
+        <footer class="legend">
+          <span><i class="dot upper"></i> Ramal superior</span>
+          <span><i class="dot lower"></i> Ramal inferior</span>
+          <span><i class="dot box"></i> Caixa</span>
+          <span class="dimension">464 × 290 × 214 mm</span>
+        </footer>
+      </section>
+      <aside class="panel control-panel">
+        <div class="panel-heading"><div><h2>Controle</h2><p id="phase">Partida 50/50</p></div><span id="status" class="status" role="status">Pronto</span></div>
+        <div class="control-body">
+          <div class="timer"><span>Tempo simulado</span><strong id="clock">00:00:00</strong><progress id="progress" max="100" value="0" aria-label="Progresso do ensaio"></progress></div>
+          <div class="actions">
+            <button id="play" class="button primary">Iniciar</button>
+            <button id="reset" class="button secondary">Reiniciar</button>
+          </div>
+          <div class="speed"><label for="speed">Velocidade de reprodução</label><select id="speed"><option value="1">1×</option><option value="10" selected>10×</option><option value="30">30×</option><option value="60">60×</option></select></div>
+          <button id="finish" class="button secondary wide">Simular até o fim</button>
+          <div class="divider"></div>
+          <h3>Distribuição</h3>
+          <div class="split-bar" aria-hidden="true"><i id="split-upper"></i><i></i></div>
+          <div class="split-values"><span id="upper-share">50% superior</span><span id="lower-share">50% inferior</span></div>
+          <div id="routes" class="routes"></div>
+          <div class="transfer"><span>Desvios ao outro ramal <b id="redirected">0</b></span><span>Espera na entrada <b id="held">0 s</b></span></div>
+        </div>
+      </aside>
+    </div>
+    <section class="panel machine-panel">
+      <header class="panel-heading"><div><h2>Produção por máquina</h2><p>Consumo configurado, atendimento e estoque durante o ensaio.</p></div><button id="export" class="button secondary">Exportar CSV</button></header>
+      <div class="table-wrap"><table><thead><tr><th>Máquina</th><th>Ramal</th><th>Demanda (cx/min)</th><th>Consumidas</th><th>Estoque</th><th>Faltas</th></tr></thead><tbody id="machine-rows"></tbody></table></div>
+    </section>
+  </main>
+  <dialog id="settings">
+    <form id="settings-form">
+      <div class="dialog-head"><div><h2>Configurar cenário</h2><p>Aplicar os parâmetros reinicia o ensaio.</p></div><button id="config-close" class="button secondary" type="button" aria-label="Fechar">Fechar</button></div>
+      <div class="fields">
+        <label>Alimentação (cx/min)<input name="feed" type="number" min="0" max="1000" step="any" required></label>
+        <label>Duração (h)<input name="hours" type="number" min="0.016666666666666666" max="24" step="any" required></label>
+        <label>Velocidade da entrada (m/min)<input name="mainSpeed" type="number" min="1" max="300" step="any" required></label>
+        <label>Velocidade dos ramais (m/min)<input name="branchSpeed" type="number" min="1" max="300" step="any" required></label>
+        <label>Ciclo de transferência à máquina (s)<input name="cycle" type="number" min="0.2" max="120" step="any" required></label>
+        <label>Duração da divisão 50/50 (s)<input name="warmup" type="number" min="0" max="3600" step="any" required></label>
+        <label>Saída alternativa <select name="alternative"><option>G22</option><option>E18</option></select></label>
+      </div>
+      <details><summary>Consumo por máquina (cx/min)</summary><p>Os valores da planilha já incluem a margem de 5%. Use zero para desligar uma máquina.</p><div id="rate-fields" class="fields"></div></details>
+      <p id="config-error" class="error" role="alert" hidden></p>
+      <div class="dialog-actions"><button id="defaults" class="button secondary" type="button">Restaurar referência</button><button class="button primary">Aplicar cenário</button></div>
+    </form>
+  </dialog>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
