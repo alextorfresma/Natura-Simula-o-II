@@ -1,9 +1,9 @@
-import {parseStopTime,stopActive} from './stops.js?v=11';
-import {defaultConfig,prepare,supportsAlternative} from './model.js?v=11';
-import {normalizeZones,zoneCapacity,levelDistance,insideZones,initialPositions} from './accumulations.js?v=11';
-import {createAnalytics} from './charts.js?v=11';
-import {createLayoutEditor} from './layout-editor.js?v=11';
-import {layoutBounds,validateLayoutSeed,layoutFromSeed,compileLayout,configForLayout} from './layout-data.js?v=11';
+import {parseStopTime,stopActive} from './stops.js?v=12';
+import {defaultConfig,prepare,supportsAlternative} from './model.js?v=12';
+import {normalizeZones,zoneCapacity,levelDistance,insideZones,initialPositions} from './accumulations.js?v=12';
+import {createAnalytics} from './charts.js?v=12';
+import {createLayoutEditor} from './layout-editor.js?v=12';
+import {layoutBounds,validateLayoutSeed,layoutFromSeed,compileLayout,configForLayout} from './layout-data.js?v=12';
 const $=id=>document.getElementById(id),num=(x,n=2)=>Number(x).toLocaleString('pt-BR',{maximumFractionDigits:n,minimumFractionDigits:n}),int=x=>Number(x).toLocaleString('pt-BR'),esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const clock=t=>{t=Math.max(0,Math.floor(t||0));return [Math.floor(t/3600),Math.floor(t/60)%60,t%60].map(x=>String(x).padStart(2,'0')).join(':');};
 const state={seed:null,originalSeed:null,config:null,result:null,prepared:null,selected:11,frame:0,time:0,playing:false,worker:null,zoom:1,pan:{x:0,y:0},drag:null,recording:false,history:[]};
@@ -60,7 +60,7 @@ function run(){
  readForm();try{state.prepared=prepare(state.config,state.seed);}catch(e){toast(e.message,true);return;}
  state.playing=false;$('play').textContent='▶';state.worker?.terminate();
  $('progressOverlay').hidden=false;$('progressFill').style.width='0%';$('progressText').textContent='Calculando '+num(state.config.durationHours,2)+' horas de produção…';
- try{state.worker=new Worker(new URL('./worker.js?v=11',import.meta.url),{type:'module'});}catch(e){$('progressOverlay').hidden=true;toast('O navegador não conseguiu iniciar o cálculo: '+e.message,true);return;}
+ try{state.worker=new Worker(new URL('./worker.js?v=12',import.meta.url),{type:'module'});}catch(e){$('progressOverlay').hidden=true;toast('O navegador não conseguiu iniciar o cálculo: '+e.message,true);return;}
  state.worker.onmessage=({data})=>{
   if(data.type==='progress'){$('progressFill').style.width=Math.round(data.value*100)+'%';$('progressText').textContent=Math.round(data.value*100)+'% · caixas, sensores e consumo sendo calculados';}
   if(data.type==='error'){$('progressOverlay').hidden=true;toast(data.message,true);state.worker.terminate();state.worker=null;}
@@ -79,7 +79,13 @@ function run(){
     'O período terminou antes de completar a reserva dos transportadores.':
     'O período terminou antes de todos os acúmulos atingirem o máximo.';
    splitNote.textContent=preloadNote+(data.result.filledAt===null?incomplete:
-    'Reposição por consumo a partir de '+clock(data.result.filledAt)+' · '+int(data.result.groupSent?.[0]??0)+' caixas para o superior · '+int(data.result.groupSent?.[1]??0)+' para o inferior');
+    'Produção por consumo a partir de '+clock(data.result.filledAt));
+   if(data.result.groupSent){
+    const sides=[0,1].map(group=>data.result.lines.filter(s=>s.enabled&&s.group===group)
+     .reduce((a,s)=>({rate:a.rate+s.rate,missed:a.missed+s.missed}),{rate:0,missed:0}));
+    splitNote.textContent+=' · Superior '+num(sides[0].rate,2)+' cx/min, '+int(sides[0].missed)+' faltas'+
+     ' · Inferior '+num(sides[1].rate,2)+' cx/min, '+int(sides[1].missed)+' faltas';
+   }
    $('scenarioLabel').textContent=data.result.outsideAccumMax>0?'Fila fora dos acúmulos':data.result.allStart===null?'Pré-enchimento incompleto':data.result.missed?'Ensaio com faltas de caixas':'Ensaio concluído';
    $('dirtyNote').textContent='Resultado atualizado. Ajuste os dados para comparar.';$('dirtyNote').classList.remove('dirty');
    $('sampleNote').textContent=(state.seed.dual?'Reprodução por caixa · amostras de até ':'Reprodução com amostras a cada ')+num(data.result.sampleInterval,1)+' s · cálculo a cada 0,1 s';
@@ -203,8 +209,9 @@ function draw(){
  if(snap!==lastAnalyticsFrame){analytics.updatePlayback(snap);lastAnalyticsFrame=snap;}
  $('clock').textContent=clock(state.seed.dual?state.time:snap?.t||0);
  const producing=snap?S.every((s,j)=>s.enabled===false||snap.running[j]):false;
- $('phaseBadge').textContent=!snap?'Pronto para simular':scheduledStop?'PARADA PROGRAMADA EM CURSO':state.seed.dual?(snap.filled?'REPOSIÇÃO POR CONSUMO':c.startMode==='precharge'&&state.result.branchFillAt!=null&&snap.t>=state.result.branchFillAt?
-  'PARTIDA · COMPLETANDO A PRINCIPAL':'PARTIDA 50/50 · ENCHENDO ACÚMULOS'):producing?'PRODUÇÃO EM ANDAMENTO':'PRÉ-ENCHIMENTO / AGUARDANDO CAIXAS';
+ $('phaseBadge').textContent=!snap?'Pronto para simular':scheduledStop?'PARADA PROGRAMADA EM CURSO':
+  state.seed.dual?(snap.filled?'REPOSIÇÃO POR CONSUMO':'ENCHIMENTO POR DEMANDA'):
+  producing?'PRODUÇÃO EM ANDAMENTO':'PRÉ-ENCHIMENTO / AGUARDANDO CAIXAS';
 }
 function updateSelected(S,snap,c){
  const j=state.selected,s=S[j];if(!s)return;
@@ -283,9 +290,9 @@ $('compare').onclick=()=>{
 };
 $('original').onclick=()=>{
  modal('Desenho cotado · Layout 03','<img id="layoutReferenceImage" class="modal-image" alt="Layout 03 com cotas dos transportadores.">');
- const img=$('layoutReferenceImage');img.onerror=()=>{img.onerror=null;img.src='layout03-cotado.svg';};img.src='assets/layout-cotado.png?v=11';
+ const img=$('layoutReferenceImage');img.onerror=()=>{img.onerror=null;img.src='layout03-cotado.svg';};img.src='assets/layout-cotado.png?v=12';
 };
-$('openAssumptions').onclick=()=>modal('Hipóteses e critérios do modelo',`<div class="modal-copy"><h3>Layout 03 e caixas</h3><p>Uma entrada e dois transportadores de distribuição. As caixas seguem em frente e são retiradas na transferência da máquina que precisa de reposição. A caixa de 464 × 290 × 214 mm ocupa 290 mm no sentido da entrada e 464 mm nos ramais. Nos três trechos longos cotados, usa-se 53,5607 m, 31,3373 m e 28,138 m. Os demais trechos seguem as linhas de centro aproximadas. A capacidade usa caixas inteiras no comprimento de acúmulo útil configurado. E18 e G22 são saídas alternativas.</p><h3>Partida e reposição</h3><p>O desvio alterna os ramais durante a partida. Se um estiver indisponível, a caixa segue para o outro. No pré-enchimento global, as primeiras caixas são divididas em rodízio entre os ramais ativos, até seus máximos. Depois, a entrada e os dois percursos ativos completam sua reserva. Quando a produção começa, o desvio distribui novas caixas de acordo com o consumo das máquinas ativas em cada percurso. A liberação de cada máquina é determinada pela opção da barra lateral.</p><p>Como no FBRA, a reposição abre ao atingir o mínimo e fecha no máximo. As caixas em trânsito no ramal já contam para o limite de reposição. A taxa da tabela já inclui os 5% da planilha.</p><h3>Paradas e consumo</h3><p>As paradas contam desde o começo do ensaio. Caixas a jusante continuam e as máquinas usam suas reservas. A falta é um ciclo de consumo de uma máquina liberada sem caixa disponível.</p></div>`);
+$('openAssumptions').onclick=()=>modal('Hipóteses e critérios do modelo',`<div class="modal-copy"><h3>Layout 03 e caixas</h3><p>Uma entrada e dois transportadores de distribuição. As caixas seguem em frente e são retiradas na transferência da máquina que precisa de reposição. A caixa de 464 × 290 × 214 mm ocupa 290 mm no sentido da entrada e 464 mm nos ramais. Nos três trechos longos cotados, usa-se 53,5607 m, 31,3373 m e 28,138 m. Os demais trechos seguem as linhas de centro aproximadas. A capacidade usa caixas inteiras no comprimento de acúmulo útil configurado. E18 e G22 são saídas alternativas.</p><h3>Partida e reposição</h3><p>O desvio reparte as caixas conforme o consumo dos lados ativos desde a partida. Quando um lado fica sem espaço, o outro pode receber a próxima caixa. No pré-enchimento global, as máquinas de cada lado recebem em rodízio até seus máximos, enquanto as caixas livres completam a reserva dos transportadores. Quando a produção começa, o desvio distribui novas caixas de acordo com o consumo das máquinas ativas em cada percurso. A liberação de cada máquina é determinada pela opção da barra lateral.</p><p>Como no FBRA, a reposição abre ao atingir o mínimo e fecha no máximo. As caixas em trânsito no ramal já contam para o limite de reposição. A taxa da tabela já inclui os 5% da planilha.</p><h3>Paradas e consumo</h3><p>As paradas contam desde o começo do ensaio. Caixas a jusante continuam e as máquinas usam suas reservas. A falta é um ciclo de consumo de uma máquina liberada sem caixa disponível.</p></div>`);
 
 let recorder=null;
 $('recordVideo').onclick=()=>{

@@ -57,7 +57,7 @@ test('seleciona e configura acúmulos por máquina sem modificar seu consumo',()
  assert.throws(()=>prepare({...revised,stations:revised.stations.map((s,i)=>i===0?{...s,minimum:4}:s)},seed),/capacidade/);
 });
 
-test('os quatro modos de liberação e a transição 50/50 são condições distintas',()=>{
+test('os quatro modos de liberação e o fim do enchimento são condições distintas',()=>{
  const scenario={...config,durationHours:1};
  const first=runModel({...scenario,startMode:'first'},seed);
  const main=runModel({...scenario,startMode:'main'},seed);
@@ -122,15 +122,19 @@ test('o pré-enchimento global mantém alimentação e distribuição proporcion
  assert.deepEqual(ready.trunks.map(boxes=>boxes.length),r.trunkCapacity);
  assert.ok(ready.stock.every((stock,i)=>stock===r.lines[i].maximum));
  assert.ok(ready.consumed.every(n=>n===0));
+ const before=r.telemetry.rows.filter(row=>row.t<r.allStart);
+ assert.ok(before.slice(1).every((row,i)=>row.admitted>before[i].admitted),
+  'O fim das reservas para máquinas não pode interromper a entrada durante o enchimento');
+ const firstAfter=r.telemetry.rows.find(row=>row.t>r.allStart);
+ assert.ok(firstAfter.admitted>ready.admitted);
  const early=r.telemetry.rows.filter(s=>s.t>=r.allStart&&s.t<=r.allStart+300);
  assert.ok(early.length>40);
  assert.ok(early.at(-1).admitted>early[0].admitted);
- assert.ok(early.slice(1).every((s,i)=>s.admitted>early[i].admitted||s.main===r.mainCapacity),
-  'Sem entrada em um intervalo, a reserva precisa estar cheia no cenário nominal');
+ assert.ok(early.slice(1).every((s,i)=>s.admitted>early[i].admitted||s.main>=r.mainCapacity-2),
+  'Sem entrada em um intervalo, a reserva precisa estar cheia ou em recomposição local');
  assert.ok(early.every(s=>s.main>=r.mainCapacity*.97));
  assert.equal(r.missed,0);
- const last=r.telemetry.rows.at(-1);
- const sent=last.groupSent.map((n,i)=>n-ready.groupSent[i]);
+ const sent=r.telemetry.rows.find(row=>row.t===60).groupSent;
  const ratio=r.lines.filter(s=>s.group===0).reduce((n,s)=>n+s.rate,0)/r.demand;
  assert.ok(Math.abs(sent[0]/(sent[0]+sent[1])-ratio)<.015);
 });
@@ -176,5 +180,26 @@ test('rodízio atende os ramais distantes antes do fim do pré-enchimento dos ra
  assert.ok(released.consumed.every(n=>n===0));
  const after=run.telemetry.rows.filter(s=>s.t>=run.allStart+60);
  assert.ok(after.every(row=>row.stock.every((stock,i)=>stock<=run.lines[i].maximum)));
+ assert.ok(run.conservation);
+});
+
+test('a demanda desigual recebe divisão proporcional desde a partida e em regime',()=>{
+ const asymmetric={...structuredClone(config),durationHours:2,inflow:65};
+ asymmetric.stations.forEach((station,i)=>{if(seed.stations[i].group===1)station.rate*=.4;});
+ const run=runModel(asymmetric,seed);
+ const demand=run.lines.filter(s=>s.group===0).reduce((sum,s)=>sum+s.rate,0);
+ assert.ok(demand>asymmetric.inflow/2 && run.demand<asymmetric.inflow);
+ const ratio=demand/run.demand;
+ const series=run.telemetry.rows;
+ const first=series.find(row=>row.t===60);
+ const previous=series.find(row=>row.t===run.duration-1800);
+ const final=series.at(-1);
+ const runSent=final.groupSent.map((n,i)=>n-previous.groupSent[i]);
+ const check=sent=>assert.ok(Math.abs(sent[0]/(sent[0]+sent[1])-ratio)<.02,sent.join(' / '));
+ check(first.groupSent);
+ check(runSent);
+ const before=series.filter(row=>row.t<run.allStart);
+ assert.ok(before.slice(1).every((row,i)=>row.admitted>before[i].admitted));
+ assert.ok(run.lines.every(line=>line.missed===0));
  assert.ok(run.conservation);
 });

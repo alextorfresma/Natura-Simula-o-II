@@ -1,4 +1,4 @@
-import {toCsv} from './analytics-data.js?v=11';
+import {toCsv} from './analytics-data.js?v=12';
 export function selectedDemand(result,indices){return [...new Set(indices)].reduce((sum,j)=>sum+(result.lines[j]?.enabled?result.lines[j].rate:0),0);}
 export function stockPoints(result,line,from=0,to=result.duration,maxPoints=480){
  const rows=result.telemetry.rows,points=[];

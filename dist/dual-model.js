@@ -1,5 +1,5 @@
-import {createStopRecovery,stopActive} from './stops.js?v=11';
-import {initialPositions,insideZones,levelDistance,zoneCapacity} from './accumulations.js?v=11';
+import {createStopRecovery,stopActive} from './stops.js?v=12';
+import {initialPositions,insideZones,levelDistance,zoneCapacity} from './accumulations.js?v=12';
 
 const DT = .1;
 const EPS = 1e-7;
@@ -59,7 +59,7 @@ export function runDualModel(input,c,seed,progress=()=>{}) {
  const telemetryInterval=[5,10,30,60,120].find(s=>duration/s<=10000)??Math.ceil(duration/10000);
  const telemetryStep=Math.round(telemetryInterval/DT);
  const warm=Math.min(1800,duration/4);
- let admitted=0, preferred=0, nextFeed=0, nextSplit=0, allStart=null, filledAt=null, redirected=0, heldSeconds=0;
+ let admitted=0, nextFeed=0, nextSplit=0, allStart=null, filledAt=null, redirected=0, heldSeconds=0;
  let warmUsed=0, warmMissed=0, maxSimultaneous=0, outsideMax=0, outsideSeconds=0, outsideFirst=null;
  const rangeMin=Int32Array.from(lines,s=>s.stock),rangeMax=rangeMin.slice();
  const initialStock=()=>Int32Array.from(lines,s=>s.stock);
@@ -91,7 +91,7 @@ export function runDualModel(input,c,seed,progress=()=>{}) {
   for (const s of active) {
    if (s.start!==null) continue;
    const ready=c.startMode==='first'?s.stock>0:c.startMode==='individual'?s.stock>=s.maximum:mainFull&&(c.startMode==='main'||everyoneFull);
-   if (ready){s.start=t;s.nextUse=t+60/s.rate;}
+   if (ready){s.start=t;s.nextUse=c.startMode==='precharge'?t:t+60/s.rate;}
   }
   if (active.every(s=>s.start!==null)) allStart=t;
  }
@@ -138,7 +138,12 @@ export function runDualModel(input,c,seed,progress=()=>{}) {
   for (const s of active) {
    if (s.start!==null) s.expected+=s.rate*DT/60;
    if (t+EPS>=s.nextUse) {
-    if (s.stock){s.stock--;s.used++;}
+    if (s.stock){
+     s.stock--;
+     s.used++;
+     // Repõe a primeira retirada na passagem do pré-enchimento para a produção.
+     if(c.startMode==='precharge'&&s.used===1)s.call=true;
+    }
     else {
      s.gap??={line:s.j,start:t,cycles:0};
      s.gap.cycles++;
@@ -230,19 +235,19 @@ export function runDualModel(input,c,seed,progress=()=>{}) {
   }
   if(outside){outsideMax=Math.max(outsideMax,outside);outsideSeconds+=outside*DT;outsideFirst??=t;}
   if (t+EPS>=nextSplit&&main[0]>=mainEnd-EPS&&!mainBarriers.some(p=>p>=c.mainLength-EPS)) {
-   const starting=filledAt===null;
    const targets=reservedFill?groups.map(group=>prefillTarget(group,t)):[];
    const ready=groups.map((group,g)=>{
     const tail=group.queue.at(-1);
-    return group.lines.length>0&&(!reservedFill||!!targets[g])&&group.queue.length<group.capacity&&
+    return group.lines.length>0&&group.queue.length<group.capacity&&
      (!tail||tail.position>=branchHalf+c.branchPitch-EPS)&&
      !trunkStops[g].some(e=>e.position<=EPS&&stopActive(e,t));
    });
    const entitled=groups.map(g=>g.credit+g.demand/totalDemand);
-   const desired=starting?preferred:Number(entitled[1]>entitled[0]);
+   const desired=Number(entitled[1]>entitled[0]);
    const chosen=ready[desired]?desired:1-desired;
    if (ready[chosen]) {
     const group=groups[chosen];
+    // As caixas sem destino reservado continuam pelo transportador e completam a reserva.
     const target=targets[chosen];
     group.queue.push({position:branchHalf,id:mainIds.shift(),destination:target?.station});
     if(target){
@@ -253,8 +258,7 @@ export function runDualModel(input,c,seed,progress=()=>{}) {
     main.shift();
     nextSplit=advanceCadence(t,nextSplit,feedPeriod);
     if (chosen!==desired&&groups[desired].lines.length) redirected++;
-    if(starting)preferred=1-chosen;
-    else groups.forEach((g,i)=>{g.credit=Math.max(-1,Math.min(1,entitled[i]-Number(i===chosen)));});
+    groups.forEach((g,i)=>{g.credit=Math.max(-1,Math.min(1,entitled[i]-Number(i===chosen)));});
    }else heldSeconds+=DT;
   }
   if (t+EPS>=nextFeed&&!mainBarriers.some(p=>p<=EPS)&&(!main.length||main.at(-1)>=mainHalf+c.mainPitch-EPS)) {
